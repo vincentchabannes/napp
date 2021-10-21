@@ -49,9 +49,15 @@ struct type<T,tag,owner_object>
     template <typename T2>
     using apply_t = type<T,tag,owner_object>;
 
+    type(type &&) = default;
+    type(type const&) = delete;
 
     template <typename V>
     type(V && t) : M_value(std::forward<V>(t)) { std::cout << "owner_object" << std::endl; }
+
+
+    template <typename T2>
+    type( type<T2,tag,reference_object> && t ) : M_value(std::forward<type<T2,tag,reference_object>>(t).value()) { std::cout << "owner_object-2-" << std::endl; } // TODO here no apply copy
 
     constexpr T & value() & { return M_value; }
     constexpr T const & value() const & { return M_value; }
@@ -80,12 +86,15 @@ struct type<T,tag,reference_object>
 #else
     type(T & t) : M_value(t) { std::cout << "ref_object-0-" << std::endl; }
 
+    type(type &&) = default;//delete;
+    type(type const&) = delete;
+
     //template <typename V,std::enable_if_t< std::is_lvalue_reference_v<V&&> && std::is_base_of_v<V/*std::remove_reference_t<V>*/,T> , bool> = true>
     //template <typename V,std::enable_if_t< std::is_lvalue_reference_v<V&&> && std::is_base_of_v<std::remove_cv_t<std::remove_reference_t<V>>/*std::remove_reference_t<V>*/,std::remove_cv_t<T>> , bool> = true>
     template <typename V,std::enable_if_t< std::is_lvalue_reference_v<V&&> && std::is_base_of_v<std::decay_t<T>,std::decay_t<V>> , bool> = true>
     type(V && t) : M_value(std::forward<V>(t)) { std::cout << "ref_object" << std::endl; }
 #endif
-    template <typename V,std::enable_if_t< std::is_rvalue_reference_v<V&&>, bool> = true>
+    template <typename V,std::enable_if_t< std::is_rvalue_reference_v<V&&> /*&& !std::is_same_v<std::decay_t<T>,std::decay_t<V>>*/, bool> = true>
     //type(V && t) : M_tmp(T(std::forward<V>(t))), M_value( std::any_cast<T&>(M_tmp) ) { std::cout << "BIS ref_object-1-" << std::endl; }
     type(V && t) : M_tmp(std::make_shared<T>(std::forward<V>(t))), M_value( *std::any_cast<std::shared_ptr<T>&>(M_tmp).get() ) { std::cout << "BIS ref_object-1-" << std::endl; }
 
@@ -94,16 +103,33 @@ struct type<T,tag,reference_object>
     type(V && t) : M_tmp(std::make_shared<T>(std::forward<V>(t))), M_value( *std::any_cast<std::shared_ptr<T>&>(M_tmp).get() ) { std::cout << "BIS ref_object-2-" << std::endl; }
     //type(V && t) : M_tmp(T(std::forward<V>(t))), M_value( std::any_cast<T&>(M_tmp) ) { std::cout << "BIS ref_object-2-" << std::endl; }
 
+    //template <typename V,std::enable_if_t< std::is_lvalue_reference_v<V&&> && !std::is_base_of_v<std::decay_t<T>,std::decay_t<V>>, bool> = true>
+    //type( V && t, std::any const& ) :
 
-    T & value() & { return M_value; }
-    T const& value() const & { return M_value; }
-    T & value() && { return M_value; }
+    template <typename T2, typename tag2,typename ObjectType2> friend class type;
+
+
+    template <typename T2>
+    type( type<T2,tag,owner_object> && t ) :
+        M_tmp(std::make_shared<T>(std::forward<type<T2,tag,owner_object>>(t).value())),
+        M_value( *std::any_cast<std::shared_ptr<T>&>(M_tmp).get() ) { std::cout << "BIS ref_object-3-" << std::endl; }
+
+
+    // TODO HERE : maybe some case where we can avoid the copy
+    template <typename T2>
+    //type( type<T2,tag,reference_object> && t ) : M_tmp( std::move( t.M_tmp ) ), M_value( std::move(std::forward<type<T2,tag,reference_object>>(t).M_value) ) {}
+    //type( type<T2,tag,reference_object> && t ) : M_tmp( std::move( t.M_tmp ) ), M_value( std::move( static_cast<type<T2,tag,reference_object>&&>(t).M_value) ) {}
+    type( type<T2,tag,reference_object> && t ) : type( std::forward<type<T2,tag,reference_object>>(t).M_value ) {}
+
+
+    T & value()  { return M_value; }
+    T const& value() const  { return M_value; }
+    //T & value() && { return M_value; } // NOT ALWAYS GOOD!!
 private :
     std::any M_tmp;
     T & M_value;
 
 };
-
 
 template <typename T>
 struct ownership_object : std::conditional<
@@ -152,17 +178,7 @@ struct named_parameter
     constexpr typename T::template apply_t<V> operator=(V v) const { return typename T::template apply_t<V>(v);}
 #endif
     template <typename V>
-    //constexpr typename T::template apply_t<V> operator=(V && v) const { return typename T::template apply_t<V>( std::forward<V>( v ) );}
-    constexpr typename T::template apply_t</*std::decay_t<V>*/V/*std::remove_reference_t<V>*/> operator=(V && v) const {
-        // if ( std::is_lvalue_reference_v<V> )
-        //     std::cout << " std::is_lvalue_reference " << std::endl;
-        return typename T::template apply_t</*std::remove_reference_t<V>*/V/*std::decay_t<V>*/>( std::forward<V>( v ) );}
-
-
-    //template <typename V, std::enable_if_t< std::is_array_v<V>, bool> = true >
-    //constexpr typename T::template apply_t<V> operator=(V && v) const { return typename T::template apply_t<V>( std::forward<V>( v ) );}
-
-
+    constexpr typename T::template apply_t<V> operator=(V && v) const { return typename T::template apply_t<V>( std::forward<V>( v ) );}
 };
 
 template <typename T>
@@ -213,15 +229,16 @@ struct to_tuple : std::tuple<T...>
     using std::tuple<T...>::tuple;
 
     using super_type = std::tuple<T...>;
-
+#if 1
     // conversion operator
 #if 0
     template <typename ... Ts>
     operator std::tuple<Ts...> () { return { std::get<Ts>(*this)...}; }
 #else
     template <typename ... Ts>
-    operator std::tuple<Ts...> () { return std::tuple<Ts...>{ getImpl<typename Ts::tag_type,0, sizeof...(T) >( static_cast<super_type&&>( *this ) )...};}
-    //operator std::tuple<Ts...> () { return std::tuple<Ts...>{ getImplBIS<typename Ts::tag_type,0, sizeof...(T) >( static_cast<super_type&&>( *this ) )...}; }
+    //operator std::tuple<Ts...> () { return std::tuple<Ts...>{ getImpl<typename Ts::tag_type,0, sizeof...(T) >( static_cast<super_type&&>( *this ) )...};}
+    operator std::tuple<Ts...> () { return std::tuple<Ts...>{ getImplBIS<typename Ts::tag_type,0, sizeof...(T) >( static_cast<super_type&&>( *this ) )...}; }
+#endif
 #endif
 };
 
@@ -238,9 +255,9 @@ struct args
     args(U&& ... u) : values(to_tuple(std::forward<U>(u)...)) {}
 #else
     template <typename UU,typename ... U>
-    args(UU && uu,U&& ... u) : values(to_tuple(std::forward<UU>(uu),std::forward<U>(u)...)) {}
+    args(UU && uu,U&& ... u) : values(to_tuple(std::forward<UU>(uu),std::forward<U>(u)...)) { std::cout << "baznzna 2" << std::endl; }
     template <typename U>
-    args(U&&  u) : values(std::forward<U>(u)) {}
+    args(U&&  u) : values(std::forward<U>(u)) { std::cout << "baznzna" << std::endl;}
 #endif
     args() = delete;
     args( args const& ) = delete;
@@ -276,12 +293,20 @@ struct args
     std::tuple<T...> values;
 
     template <typename TheType>
-    constexpr auto && getBIS() const
+    constexpr auto && getBIS() const &
         {
             if constexpr ( false ) // non template type
                              return std::get<TheType>( this->values ).value;
             else
                 return getImplBIS<typename TheType::tag_type,0,sizeof...(T)>( this->values );
+        }
+    template <typename TheType>
+    constexpr auto && getBIS() &&
+        {
+            if constexpr ( false ) // non template type
+                             return std::get<TheType>( this->values ).value;
+            else
+                return getImplBIS<typename TheType::tag_type,0,sizeof...(T)>( std::move( this->values ) );
         }
 
 #if 1
@@ -290,6 +315,8 @@ struct args
         {
             //return  std::forward<TheType>( a );
             //return std::move( args<T...>{ T{std::move( std::forward<TheType>( a ).template get<T>() )} ... } );
+            //return std::move( args<T...>{ std::forward<TheType>( a ).template getBIS<T>() ... } );
+            //return args<T...>{ std::forward<TheType>( a ).template getBIS<T>() ... };
             //return std::move( args<T...>{ std::forward<TheType>( a ).template getBIS<T>() ... } );
             return args<T...>{ std::forward<TheType>( a ).template getBIS<T>() ... };
         }
@@ -332,22 +359,7 @@ auto extendImpl( args<T...> && args )
 template <typename NewArgType, typename ArgsType, typename ... T>
 auto /*&&*/ extend( /*args<ArgsType>*/ArgsType && args, T && ... defaultParams )
 {
-    //args
-
-    //to_tuple(std::forward<U>(u)...)) {}
-
-
-    //auto tii = []( auto && ... i ) { };
-
-#if 1
     return NewArgType::New( std::forward<ArgsType>( args )/*.values*/ );
-#endif
-#if 0
-return args<T...>{ getImplBIS<typename T::tag_type,0,sizeof...(T)>( args.values, defaultValues ) ... };
-#else
-//return args;
-#endif
-
 }
 
 #endif

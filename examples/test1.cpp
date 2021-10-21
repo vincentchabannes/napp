@@ -47,7 +47,7 @@ struct Foo
     Foo() = delete;
     Foo(int a,int b) : M_i(a*b) {}
 
-    Foo( Foo const& ) = delete;
+    Foo( Foo const& ) = delete;//default;// delete;
     Foo( Foo && ) = default;//delete;
     Foo & operator=( Foo const& ) = delete;
     Foo & operator=( Foo && ) = delete;
@@ -104,8 +104,16 @@ std::string test2b( Ts && ... v )
                   typename last_name::template required_as_t<std::string>,
                   typename data::template required_as_t<Foo &> >{ std::forward<Ts>(v)... } );
 }
+#if 1
+template <typename ... Ts>
+void test2bbb( Ts && ... v )
+{
+    NA::args<typename first_name::template required_as_t<std::string /*const&*/>,
+             typename last_name::template required_as_t<std::string>,
+             typename data::template required_as_t<Foo &> >{ std::forward<Ts>(v)... };
+}
 
-
+#endif
 
 
 using test3_arg_type = NA::args<typename first_name::template required_as_t<std::string &>,
@@ -133,10 +141,61 @@ void test3( Ts && ... v )
 //     using vvv = typename T::hola;
 // }
 
+template <typename T>
+using test4_arg_type = NA::args<
+    typename first_name::template required_as_t<std::string>,
+    typename last_name::template required_as_t<std::string>,
+    typename data::template required_as_t<T&>
+    >;
+
+template <typename T>
+void test4( test4_arg_type<T> && v )
+{
+    std::cout << "fn="<<v.template get<first_name>() <<std::endl;
+    std::cout << "data="<<v.template get<data>() <<std::endl;
+
+}
+
+template <typename ... Ts>
+void test4( Ts && ... v )
+{
+#if 0
+    test4( NA::extend<test4_arg_type<Foo>>( NA::args<Ts...>{ std::forward<Ts>(v)... },
+                                            NA::default_parameter<first_name>( []() { return "toto"; } ),
+                                            NA::default_parameter<last_name>( "titi" ) ) );
+#endif
+    // auto && aa = NA::extend<test4_arg_type</*double*/Foo>>( NA::args<Ts...>{ std::forward<Ts>(v)... } );
+
+    NA::args<Ts...> a{ std::forward<Ts>(v)... };
+
+    using thedata_arg_type = std::decay_t<decltype(a.template get<data>())>;
+
+    test4<thedata_arg_type>( NA::extend<test4_arg_type<thedata_arg_type>>( std::move(a) ) );
+
+    //test4<Foo>( NA::extend<test4_arg_type</*double*/Foo>>( NA::args<Ts...>{ std::forward<Ts>(v)... } ) );
+    //auto bbb = NA::args<Ts...>{ std::forward<Ts>(v)... };
+    //auto aa = NA::extend<test4_arg_type</*double*/Foo>>( bbb );
+
+    // std::cout << "fn="<<aa.template get<first_name>() <<std::endl;
+    // std::cout << "data="<<aa.template get<data>() <<std::endl;
+    //std::cout << "dataBIS="<<bbb.template get<data>() <<std::endl;
+
+    //test4<Foo>( test4_arg_type<Foo>{ std::forward<Ts>(v)... } );
+
+}
+
+
+
+
 int main()
 {
-#if 1
+    // std::string f;
+    // test2bbb(_first_name= "James", _last_name="Bond",_data=Foo(6,5) );
+    // test2bbb(_first_name= std::string(f), _last_name=std::string(f),_data=Foo(6,5) );
+
+
     assert( test1({_first_name= "James", _last_name="Bond" }) == "James Bond" );
+#if 1
     assert( test1({_last_name= "Bond", _first_name="James" }) == "James Bond" );
     assert( test1({_last_name= "Bond", _first_name=std::string("James") }) == "James Bond" );
     std::string fn= "James";
@@ -146,6 +205,7 @@ int main()
     assert( test2(_first_name="James" ) == "James default_last_name default_data_value default_data_lambda" );
     assert( test2(_first_name=fn, _last_name="Bond" ) == "James Bond default_data_value default_data_lambda" );
     assert( test2(_last_name= "Bond", _first_name="James" ) == "James Bond default_data_value default_data_lambda" );
+
     Foo b(3,5);
     assert( test2(_first_name= "James", _last_name="Bond",_data=b ) == "James Bond i=15 i=15" );
     assert( test2(_first_name= "James", _last_name="Bond",_data=Foo(4,3) ) == "James Bond i=12 i=12" );
@@ -154,7 +214,7 @@ int main()
     assert( test2b(_first_name= "James", _last_name="Bond",_data=b ) == "James Bond i=15 i=15" );
     Baz baz(2,5);
     assert( test2b(_first_name= "James", _last_name="Bond",_data=baz ) == "James Bond i=-21 i=-21" );
-#endif
+
 
     std::string fn3,ln3;Foo foo3(0,0);
     test3( _data=foo3,_last_name=ln3,_first_name=fn3 );
@@ -171,7 +231,11 @@ int main()
 
 
 
-
+    std::string fn4="a",ln4="b";double d=3; Foo foo4(4,3);
+    //test4(_first_name= fn4, _last_name=ln4,_data=d/*Foo(4,3)*/ );
+    //test4(_first_name= fn4, _last_name=ln4,_data=foo4/*Foo(4,3)*/ );
+    test4(_first_name=std::string(fn4), _last_name=std::string(ln4),_data=foo4/*Foo(4,3)*/ );
+#endif
 
     return 0;
 }
