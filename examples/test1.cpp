@@ -25,12 +25,22 @@ constexpr auto& _data = NA::parameter<data>;
 std::string test1( NA::args<typename first_name::template required_as_t<std::string const&>,
                             typename last_name::template required_as_t<std::string> > && v )
 {
+    using tototo = NA::args<typename first_name::template required_as_t<std::string const&>,
+                            typename last_name::template required_as_t<std::string> >;
+    std::string bbb ;
     std::ostringstream res;
     res << v.template get<first_name>()
         << " "
+        //<< v.template get_optional<data>( "default_data_value" )
+        //<< std::forward<tototo>( v ).template get_optional<data>( std::string("AAAAdefault_data_value") )
+        //<< std::move( NA::default_parameter<data>( std::string("default_data_value") ).value() )
         << v.template get<last_name>();
 
+
     //std::cout << "test1 : " << res.str() << std::endl;
+
+    //v.template get_optional<data>( std::string("default_data_value") );
+
     return res.str();
 }
 
@@ -73,6 +83,8 @@ struct Baz : Foo
     Baz & operator=( Baz && ) = delete;
 };
 
+std::string const& uu = "toto";
+
 
 template <typename ... TT>
 std::string test2( NA::args<TT...> && v )
@@ -83,8 +95,12 @@ std::string test2( NA::args<TT...> && v )
         << v.template get_optional<last_name>("default_last_name")
         << " "
         << v.template get_optional<data>( "default_data_value" )
+        //<< v.template get_optional<data>( std::string("default_data_value") )
+        //<< v.template get_optional<data>( Foo(3,2)/*std::string("default_data_value")*/ )
         << " "
         << v.template get_optional<data>( [](){ return "default_data_lambda"; } );
+    v.template get_optional<data>( uu );
+    v.template get_optional<data>( std::string("default_data_value") );
 
     std::cout << "test2 : " << res.str() << std::endl;
     return res.str();
@@ -93,7 +109,7 @@ std::string test2( NA::args<TT...> && v )
 template <typename ... Ts>
 std::string test2( Ts && ... v )
 {
-  return test2( NA::args<Ts...>{ std::forward<Ts>(v)... } );
+    return test2( NA::make_arguments( std::forward<Ts>(v)... ) );
 }
 
 
@@ -129,7 +145,9 @@ void test3( test3_arg_type && v )
 template <typename ... Ts>
 void test3( Ts && ... v )
 {
-    test3( test3_arg_type{ std::forward<Ts>(v)... } );
+    //test3( test3_arg_type{ std::forward<Ts>(v)... } );
+    test3( NA::make_arguments<test3_arg_type>( std::forward<Ts>(v)... ) );
+
 }
 
 
@@ -151,8 +169,11 @@ using test4_arg_type = NA::args<
 template <typename T>
 void test4( test4_arg_type<T> && v )
 {
-    std::cout << "fn="<<v.template get<first_name>() <<std::endl;
+    //std::cout << "fn="<<v.template get<first_name>() <<std::endl;
     std::cout << "data="<<v.template get<data>() <<std::endl;
+
+    if constexpr ( NA::has_v<first_name_string,test4_arg_type<T> > )
+        std::cout << "fn="<<v.template get<first_name_string>() <<std::endl;
 
 }
 
@@ -194,20 +215,22 @@ int main()
     // test2bbb(_first_name= std::string(f), _last_name=std::string(f),_data=Foo(6,5) );
 
 
+    //assert( test1({_first_name= "James", _last_name="Bond" }) == "James Bond" );
+    //assert( test1({_first_name= std::string("James"), _last_name="Bond" }) == "James Bond" );
+    //assert( test1({_first_name= "James", _last_name=std::string("Bond") }) == "James Bond" );
+
     assert( test1({_first_name= "James", _last_name="Bond" }) == "James Bond" );
-#if 1
     assert( test1({_last_name= "Bond", _first_name="James" }) == "James Bond" );
     assert( test1({_last_name= "Bond", _first_name=std::string("James") }) == "James Bond" );
     std::string fn= "James";
     assert( test1({_first_name= fn, _last_name="Bond" }) == "James Bond" );
 
-
     assert( test2(_first_name="James" ) == "James default_last_name default_data_value default_data_lambda" );
     assert( test2(_first_name=fn, _last_name="Bond" ) == "James Bond default_data_value default_data_lambda" );
     assert( test2(_last_name= "Bond", _first_name="James" ) == "James Bond default_data_value default_data_lambda" );
-
     Foo b(3,5);
     assert( test2(_first_name= "James", _last_name="Bond",_data=b ) == "James Bond i=15 i=15" );
+#if 1
     assert( test2(_first_name= "James", _last_name="Bond",_data=Foo(4,3) ) == "James Bond i=12 i=12" );
 
     assert( test2b(_first_name= "James", _last_name="Bond",_data=Foo(6,5) ) == "James Bond i=30 i=30" );
@@ -230,12 +253,21 @@ int main()
     assert( res3b.str() == "James Bond i=34" );
 
 
-
     std::string fn4="a",ln4="b";double d=3; Foo foo4(4,3);
-    //test4(_first_name= fn4, _last_name=ln4,_data=d/*Foo(4,3)*/ );
-    //test4(_first_name= fn4, _last_name=ln4,_data=foo4/*Foo(4,3)*/ );
-    test4(_first_name=std::string(fn4), _last_name=std::string(ln4),_data=foo4/*Foo(4,3)*/ );
-#endif
 
+    test4(_first_name= fn4, _last_name=ln4,_data=d/*Foo(4,3)*/ );
+    test4(_first_name= fn4, _last_name=ln4,_data=foo4/*Foo(4,3)*/ );
+    test4(_first_name=std::string(fn4), _last_name=std::string(ln4),_data=foo4/*Foo(4,3)*/ );
+    test4(_first_name=fn4, _last_name=std::string(ln4),_data=foo4/*Foo(4,3)*/ );
+
+    //test4(_first_name= fn4, _last_name=ln4,_data=[]() { return "toto"; } );
+
+
+    //auto hola = NA::make_argument<first_name>( 36 );
+    //auto hola2 = NA::make_argument<first_name>( fn );
+    auto hola2 = NA::make_argument<first_name>( "toto" );
+    //hola2 = 3;
+    test4( std::move(hola2), _last_name=std::string(ln4),_data=foo4/*Foo(4,3)*/ );
+#endif
     return 0;
 }
