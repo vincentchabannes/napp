@@ -92,7 +92,7 @@ std::string test2( NA::args<TT...> && v )
     std::ostringstream res;
     res << v.template get<first_name>()
         << " "
-        << v.template get_optional<last_name>("default_last_name")
+         << v.template get_optional<last_name>("default_last_name")
         << " "
         << v.template get_optional<data>( "default_data_value" )
         //<< v.template get_optional<data>( std::string("default_data_value") )
@@ -226,11 +226,12 @@ int main()
     assert( test1({_first_name= fn, _last_name="Bond" }) == "James Bond" );
 
     assert( test2(_first_name="James" ) == "James default_last_name default_data_value default_data_lambda" );
+#if 1
     assert( test2(_first_name=fn, _last_name="Bond" ) == "James Bond default_data_value default_data_lambda" );
     assert( test2(_last_name= "Bond", _first_name="James" ) == "James Bond default_data_value default_data_lambda" );
     Foo b(3,5);
     assert( test2(_first_name= "James", _last_name="Bond",_data=b ) == "James Bond i=15 i=15" );
-#if 1
+
     assert( test2(_first_name= "James", _last_name="Bond",_data=Foo(4,3) ) == "James Bond i=12 i=12" );
 
     assert( test2b(_first_name= "James", _last_name="Bond",_data=Foo(6,5) ) == "James Bond i=30 i=30" );

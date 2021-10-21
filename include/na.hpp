@@ -392,30 +392,31 @@ struct args
             else
             {
                 auto defaultArg = NA::default_parameter<TheType>( std::forward<DefaultType>( defaultValue ) );
-                //M_tmps.push_back( std::make_any( std::move( defaultArg ) ) );
-                //M_tmps.push_back( std::make_any( defaultArg ) );
-
-                //std::any<std::decay_t<decltype(defaultArg)>>{ defaultArg };
-                //std::any aaa{ std::move(defaultArg) };
-                //auto bbb = std::make_shared<std::decay_t<decltype(defaultArg)>>( std::move(defaultArg) );
-
                 using the_default_arg_type = std::decay_t<decltype(defaultArg)>;
-
+#if 0
                 M_tmps.push_back( std::make_shared<the_default_arg_type>( std::move(defaultArg) ) );
 
-                //M_tmps.push_back( std::make_any<std::decay_t<decltype(defaultArg)>>( std::move( defaultArg ) ) );
-                //auto bbb= std::make_any<std::decay_t<decltype(defaultArg)> &&>;
-                //M_tmps.push_back( std::any{ std::move( defaultArg ) } );// std::move( defaultArg ) );
-                //M_tmps.push_back( std::make_shared<std::decay_t<DefaultType>>( std::move( defaultArg ) ) );// std::move( defaultArg ) );
-                //M_tmp.emplace( std::move( defaultArg ) );
-                //auto bbb = std::move( defaultArg );
-                //auto bbb = std::make_shared<std::decay_t<DefaultType>>( 
-                //return defaultArg.value();
                 if constexpr ( std::is_invocable_v<typename the_default_arg_type::value_type> )
                                  return std::move( std::any_cast<std::shared_ptr<the_default_arg_type> const&>(M_tmps.back()).get()->value()() );
-                    else
-                return std::any_cast<std::shared_ptr<the_default_arg_type> const&>(M_tmps.back()).get()->value();
-                //M_value( *std::any_cast<std::shared_ptr<T>&>(M_tmp).get() ) { std::cout << "BIS ref_object-3-" << std::endl; }
+                else
+                    return std::any_cast<std::shared_ptr<the_default_arg_type> const&>(M_tmps.back()).get()->value();
+#else
+
+                if constexpr ( std::is_invocable_v<typename the_default_arg_type::value_type> )
+                {
+                auto defaultArg2 = NA::default_parameter<TheType>( defaultArg.value()() );
+                using the_default_arg2_type = std::decay_t<decltype(defaultArg2)>;
+                M_tmps.push_back( std::make_shared<the_default_arg2_type>( std::move(defaultArg2) ) );
+
+                                 return std::any_cast<std::shared_ptr<the_default_arg2_type> const&>(M_tmps.back()).get()->value();
+                                 }
+                else
+                {
+                    M_tmps.push_back( std::make_shared<the_default_arg_type>( std::move(defaultArg) ) );
+                    return std::any_cast<std::shared_ptr<the_default_arg_type> const&>(M_tmps.back()).get()->value();
+                }
+
+#endif
 
             }
         }
