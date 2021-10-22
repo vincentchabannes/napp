@@ -10,8 +10,12 @@
 using first_name = NA::template_type<struct first_name_tag>;
 using last_name = NA::template_type<struct last_name_tag>;
 
-using first_name_string = NA::type<std::string, struct first_name_string_tag>;
-using last_name_string = NA::type<std::string, struct last_name_string_tag>;
+//using first_name_string = NA::type<std::string, struct first_name_string_tag>;
+//using last_name_string = NA::type<std::string, struct last_name_string_tag>;
+using first_name_string = NA::named_argument_t<struct first_name_string_tag,std::string>;
+//using last_name_string = NA::named_argument_t<struct last_name_string_tag,std::string>;
+//using first_name_string = NA::named_argument_t<first_name,std::string>;
+using last_name_string = NA::named_argument_t<last_name,std::string>;
 
 using data = NA::template_type<struct data_tag>;
 
@@ -169,7 +173,7 @@ using test4_arg_type = NA::args<
 template <typename T>
 void test4( test4_arg_type<T> && v )
 {
-    //std::cout << "fn="<<v.template get<first_name>() <<std::endl;
+    std::cout << "fn="<<v.template get<first_name>() <<std::endl;
     std::cout << "data="<<v.template get<data>() <<std::endl;
 
     if constexpr ( NA::has_v<first_name_string,test4_arg_type<T> > )
@@ -191,7 +195,9 @@ void test4( Ts && ... v )
 
     using thedata_arg_type = std::decay_t<decltype(a.template get<data>())>;
 
-    test4<thedata_arg_type>( NA::extend<test4_arg_type<thedata_arg_type>>( std::move(a) ) );
+    test4<thedata_arg_type>( NA::extend<test4_arg_type<thedata_arg_type>>( std::move(a),
+                                                                           NA::default_parameter<first_name>( std::string("aaa") )// []() { return "toto"; } )
+                                                                           ) );
 
     //test4<Foo>( NA::extend<test4_arg_type</*double*/Foo>>( NA::args<Ts...>{ std::forward<Ts>(v)... } ) );
     //auto bbb = NA::args<Ts...>{ std::forward<Ts>(v)... };
@@ -261,6 +267,8 @@ int main()
     test4(_first_name=std::string(fn4), _last_name=std::string(ln4),_data=foo4/*Foo(4,3)*/ );
     test4(_first_name=fn4, _last_name=std::string(ln4),_data=foo4/*Foo(4,3)*/ );
 
+    test4(/*_first_name=fn4,*/ _last_name=std::string(ln4),_data=foo4 );
+
     //test4(_first_name= fn4, _last_name=ln4,_data=[]() { return "toto"; } );
 
 
@@ -270,5 +278,13 @@ int main()
     //hola2 = 3;
     test4( std::move(hola2), _last_name=std::string(ln4),_data=foo4/*Foo(4,3)*/ );
 #endif
+
+
+    if constexpr ( NA::is_named_argument_v<first_name> )
+                     std::cout << "YESY" << std::endl;
+    if constexpr ( !NA::is_named_argument_v<first_name_tag> )
+                     std::cout << "YESY" << std::endl;
+
+
     return 0;
 }

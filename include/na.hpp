@@ -60,8 +60,11 @@ using infer_type_t = typename infer_type<T,tag>::type;
 
 #endif
 
+struct named_argument_base {};
+
+
 template <typename T, typename tag>
-struct type<T,tag,owner_object>
+struct type<T,tag,owner_object> : named_argument_base
 {
     static_assert(!std::is_reference_v<T>,
                   "T must not be a reference. Rather set the category!");
@@ -94,7 +97,7 @@ private :
 };
 
 template <typename T, typename tag>
-struct type<T,tag,reference_object>
+struct type<T,tag,reference_object> : named_argument_base
 {
     using tag_type = tag;
     using value_type = T;
@@ -149,28 +152,75 @@ private :
 } // detail
 
 
-template <typename T,typename Tag>
-using type = typename detail::infer_type_t<T,Tag>;
+//template <typename T,typename Tag>
+//using type = typename detail::infer_type_t<T,Tag>;
+
+
+
+template <typename T, typename = void>
+struct is_named_argument : std::false_type {};
+
+// trick with decltype(sizeof(T)) to check if T is complete type
+template <typename T>
+//struct is_named_argument<T, std::void_t<std::is_base_of<detail::named_argument_base,T>> > : std::true_type {};
+struct is_named_argument<T, std::void_t<decltype(sizeof(T))> > : std::is_base_of<detail::named_argument_base,T>::type {};//std::true_type {};
+
+
+template <typename T>
+constexpr bool is_named_argument_v = is_named_argument<T>::value;
+
+//template <typename T>
+//constexpr bool is_named_argument_v = std::is_base_of_v<detail::named_argument_base,T>;
+
+
+template <typename TagType, typename /*Enable*/ = void>
+struct named_argument_tag
+{
+    using type = TagType;
+};
+template <typename TagType>
+struct named_argument_tag<TagType,std::void_t<std::enable_if_t< is_named_argument_v<TagType> , std::true_type/*bool*/>>>
+{
+    using type = typename TagType::tag_type;
+};
+// template <typename TagType, std::enable_if_t< is_named_argument_v<TagType> , bool> = true>
+// using named_argument_tag_t = typename TagType::tag_type;
+
+// template <typename TagType, std::enable_if_t< !is_named_argument_v<TagType> , bool> = true>
+// using named_argument_tag_t = TagType;
+template <typename TagType>
+using named_argument_tag_t = typename named_argument_tag<TagType>::type;
+
+
+template <typename NamedArgType,typename T>
+using named_argument_t = typename detail::infer_type_t<T, named_argument_tag_t<NamedArgType>/*typename NamedArgType::tag_type*/>;
+
+
 
 //! make a new arg type with value \t
-template <typename Tag,typename T>
+template <typename NamedArgType,typename T>
 constexpr auto/*type<T,Tag>*/ make_argument(T&& t)
 {
-    return detail::infer_type_t<T,typename Tag::tag_type>(std::forward<T>(t));
+    //if constexpr ( is_named_argument_v<NamedArgType> )
+    //               using bbbb = typename named_argument_tag_t<NamedArgType>::tyot;
+    //               using bbb = typename NamedArgType::toto;
+    return detail::infer_type_t<T,named_argument_tag_t<NamedArgType>>(std::forward<T>(t));
+    //return detail::infer_type_t<T,typename NamedArgType::tag_type>(std::forward<T>(t));
 }
 
 
-struct template_type_base {};
+struct template_type_base : detail::named_argument_base {};
+
 template <typename tag>
 struct template_type : template_type_base
 {
     using tag_type = tag;
 
     template <typename T>
-    using required_as_t = type<T,tag>;
+    using required_as_t = /*typename*/ detail::infer_type_t<T,tag_type>;//type<T,tag>;
 
     template <typename T>
-    using apply_t = type<T,tag>;
+    using apply_t = /*typename*/ detail::infer_type_t<T,tag_type>;//type<T,tag>;
 };
 
 template <typename T>
@@ -193,21 +243,24 @@ constexpr named_parameter<T> parameter;
 
 
 
-template <typename Tag,typename ValueType>
-struct DefaultParameter : type<ValueType,Tag>
+template <typename NamedArgType,typename ValueType>
+//struct DefaultParameter : type<ValueType,Tag>
+struct DefaultParameter : named_argument_t<NamedArgType,ValueType>
 {
     DefaultParameter() = delete;
     template <typename U>
-    DefaultParameter( U && v ) : type<ValueType,Tag>( std::forward<U>( v ) ) {}
+    DefaultParameter( U && v ) : named_argument_t<NamedArgType,ValueType>/*type<ValueType,Tag>*/( std::forward<U>( v ) ) {}
     DefaultParameter( DefaultParameter const& ) = delete;
     DefaultParameter( DefaultParameter && ) = default;//delete;
 };
 
 
-template <typename T,typename ValueType>
+template <typename NamedArgType,typename ValueType>
 auto default_parameter( ValueType && val )
 {
-    return DefaultParameter<T,ValueType>{ std::forward<ValueType>( val ) };
+    //return DefaultParameter<NamedArgType,ValueType>{ std::forward<ValueType>( val ) };
+
+    return named_argument_t<NamedArgType,ValueType>{ std::forward<ValueType>( val ) };
 }
 
 
@@ -222,6 +275,21 @@ constexpr auto&& getImplBIS(TupleType && t)
                      return std::get<Id>( std::forward<TupleType>(t) );//.value();
     else
         return getImplBIS<U,Id+1,MaxId,TupleType>( std::forward<TupleType>(t ));
+}
+
+
+template<typename U, int Id, int MaxId, typename TupleType,typename DefaultArgsTupleType>
+constexpr auto&& getImplBIS2(TupleType && t, DefaultArgsTupleType && defaultArgs)
+{
+    //static_assert( Id< MaxId );
+    if constexpr ( Id>= MaxId )
+                 {
+                     return getImplBIS<U, 0, std::tuple_size<DefaultArgsTupleType>::value>( std::forward<DefaultArgsTupleType>( defaultArgs ) );
+                 }
+    else if constexpr ( std::is_same_v<U, typename std::tuple_element_t<Id, std::decay_t<TupleType> >::tag_type > )
+                     return std::get<Id>( std::forward<TupleType>(t) );//.value();
+    else
+        return getImplBIS2<U,Id+1,MaxId,TupleType>( std::forward<TupleType>(t ), std::forward<DefaultArgsTupleType>( defaultArgs ) );
 }
 
 
@@ -330,11 +398,23 @@ struct args
                 return getImplBIS<typename NamedArgType::tag_type,0,sizeof...(T)>( std::move( this->values ) );
         }
 
+
+    template <typename NamedArgType, typename DefaultArgsTupleType>
+    constexpr auto && getOptionalArgument( DefaultArgsTupleType && defaultArgs ) //&&
+    {
+        if constexpr ( false ) // non template type
+        return std::get<NamedArgType>( std::move( this->values ) );
+        else
+            return getImplBIS2<typename NamedArgType::tag_type,0,sizeof...(T)>( std::move( this->values ), std::forward<DefaultArgsTupleType>( defaultArgs )  );
+    }
+
+
 #if 1
-    template <typename TheType>
-    static auto New( TheType && a )
+    template <typename TheType, typename DefaultArgsTupleType >
+    static auto New( TheType && a, DefaultArgsTupleType &&  defaultParams )
         {
-            return args<T...>{ std::forward<TheType>( a ).template getArgument<T>() ... };
+            //return args<T...>{ std::forward<TheType>( a ).template getArgument<T>() ... };
+            return args<T...>{ std::forward<TheType>( a ).template getOptionalArgument<T>( std::forward<DefaultArgsTupleType>( defaultParams ) ) ... };
         }
 #endif
 
@@ -384,7 +464,7 @@ auto extendImpl( args<T...> && args )
 template <typename NewArgType, typename ArgsType, typename ... T>
 auto /*&&*/ extend( /*args<ArgsType>*/ArgsType && args, T && ... defaultParams )
 {
-    return NewArgType::New( std::forward<ArgsType>( args )/*.values*/ );
+    return NewArgType::New( std::forward<ArgsType>( args ), std::make_tuple( std::forward<T>(defaultParams) ... ) );
 }
 
 #endif
