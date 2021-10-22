@@ -7,8 +7,9 @@
 
 #include <cassert>
 
-using first_name = NA::template_type<struct first_name_tag>;
-using last_name = NA::template_type<struct last_name_tag>;
+//using first_name = NA::template_type<struct first_name_tag>;
+using first_name = NA::named_argument_t<struct first_name_tag>;
+using last_name = NA::named_argument_t<struct last_name_tag>;
 
 //using first_name_string = NA::type<std::string, struct first_name_string_tag>;
 //using last_name_string = NA::type<std::string, struct last_name_string_tag>;
@@ -17,13 +18,12 @@ using first_name_string = NA::named_argument_t<struct first_name_string_tag,std:
 //using first_name_string = NA::named_argument_t<first_name,std::string>;
 using last_name_string = NA::named_argument_t<last_name,std::string>;
 
-using data = NA::template_type<struct data_tag>;
+using data = NA::named_argument_t<struct data_tag>;
 
 
-
-constexpr auto& _first_name = NA::parameter<first_name>;
-constexpr auto& _last_name = NA::parameter<last_name>;
-constexpr auto& _data = NA::parameter<data>;
+constexpr auto& _first_name = NA::identifier<first_name>;
+constexpr auto& _last_name = NA::identifier<last_name>;
+constexpr auto& _data = NA::identifier<data>;
 
 #if 1
 std::string test1( NA::args<typename first_name::template required_as_t<std::string const&>,
@@ -178,7 +178,6 @@ void test4( test4_arg_type<T> && v )
 
     if constexpr ( NA::has_v<first_name_string,test4_arg_type<T> > )
         std::cout << "fn="<<v.template get<first_name_string>() <<std::endl;
-
 }
 
 template <typename ... Ts>
@@ -192,23 +191,8 @@ void test4( Ts && ... v )
     // auto && aa = NA::extend<test4_arg_type</*double*/Foo>>( NA::args<Ts...>{ std::forward<Ts>(v)... } );
 
     NA::args<Ts...> a{ std::forward<Ts>(v)... };
-
     using thedata_arg_type = std::decay_t<decltype(a.template get<data>())>;
-
-    test4<thedata_arg_type>( NA::extend<test4_arg_type<thedata_arg_type>>( std::move(a),
-                                                                           NA::default_parameter<first_name>( std::string("aaa") )// []() { return "toto"; } )
-                                                                           ) );
-
-    //test4<Foo>( NA::extend<test4_arg_type</*double*/Foo>>( NA::args<Ts...>{ std::forward<Ts>(v)... } ) );
-    //auto bbb = NA::args<Ts...>{ std::forward<Ts>(v)... };
-    //auto aa = NA::extend<test4_arg_type</*double*/Foo>>( bbb );
-
-    // std::cout << "fn="<<aa.template get<first_name>() <<std::endl;
-    // std::cout << "data="<<aa.template get<data>() <<std::endl;
-    //std::cout << "dataBIS="<<bbb.template get<data>() <<std::endl;
-
-    //test4<Foo>( test4_arg_type<Foo>{ std::forward<Ts>(v)... } );
-
+    test4<thedata_arg_type>( test4_arg_type<thedata_arg_type>::create( std::move(a), NA::default_parameter<first_name>( std::string("aaa") ) ) );
 }
 
 

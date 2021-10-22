@@ -149,6 +149,24 @@ private :
 
 };
 
+
+
+
+struct template_type_base : named_argument_base {};
+
+template <typename tag>
+struct template_type : template_type_base
+{
+    using tag_type = tag;
+
+    template <typename T>
+    using required_as_t = /*typename*/ detail::infer_type_t<T,tag_type>;//type<T,tag>;
+
+    template <typename T>
+    using apply_t = /*typename*/ detail::infer_type_t<T,tag_type>;//type<T,tag>;
+};
+
+
 } // detail
 
 
@@ -192,43 +210,37 @@ template <typename TagType>
 using named_argument_tag_t = typename named_argument_tag<TagType>::type;
 
 
-template <typename NamedArgType,typename T>
-using named_argument_t = typename detail::infer_type_t<T, named_argument_tag_t<NamedArgType>/*typename NamedArgType::tag_type*/>;
-
 
 
 //! make a new arg type with value \t
 template <typename NamedArgType,typename T>
 constexpr auto/*type<T,Tag>*/ make_argument(T&& t)
 {
-    //if constexpr ( is_named_argument_v<NamedArgType> )
-    //               using bbbb = typename named_argument_tag_t<NamedArgType>::tyot;
-    //               using bbb = typename NamedArgType::toto;
     return detail::infer_type_t<T,named_argument_tag_t<NamedArgType>>(std::forward<T>(t));
-    //return detail::infer_type_t<T,typename NamedArgType::tag_type>(std::forward<T>(t));
 }
 
 
-struct template_type_base : detail::named_argument_base {};
-
-template <typename tag>
-struct template_type : template_type_base
+template <typename NamedArgType, typename T>
+struct named_argument
 {
-    using tag_type = tag;
+    using type = typename detail::infer_type_t<T, named_argument_tag_t<NamedArgType> >;
 
-    template <typename T>
-    using required_as_t = /*typename*/ detail::infer_type_t<T,tag_type>;//type<T,tag>;
-
-    template <typename T>
-    using apply_t = /*typename*/ detail::infer_type_t<T,tag_type>;//type<T,tag>;
 };
+template <typename TagType>
+struct named_argument<TagType,void>
+{
+    using type = detail::template_type<TagType>;
+
+};
+template <typename NamedArgType,typename T = void>
+using named_argument_t = typename named_argument<NamedArgType,T>::type;
 
 template <typename T>
-struct named_parameter
+struct ArgumentIdentifier
 {
-    constexpr named_parameter() = default;
-    named_parameter(const named_parameter&) = delete;
-    named_parameter& operator=(const named_parameter&) = delete;
+    constexpr ArgumentIdentifier() = default;
+    ArgumentIdentifier(const ArgumentIdentifier&) = delete;
+    ArgumentIdentifier& operator=(const ArgumentIdentifier&) = delete;
 #if 0
     template <typename V>
     constexpr typename T::template apply_t<V> operator=(V v) const { return typename T::template apply_t<V>(v);}
@@ -238,13 +250,11 @@ struct named_parameter
 };
 
 template <typename T>
-constexpr named_parameter<T> parameter;
-
+constexpr ArgumentIdentifier<T> identifier;
 
 
 
 template <typename NamedArgType,typename ValueType>
-//struct DefaultParameter : type<ValueType,Tag>
 struct DefaultParameter : named_argument_t<NamedArgType,ValueType>
 {
     DefaultParameter() = delete;
@@ -411,11 +421,21 @@ struct args
 
 #if 1
     template <typename TheType, typename DefaultArgsTupleType >
-    static auto New( TheType && a, DefaultArgsTupleType &&  defaultParams )
+    static auto createImpl( TheType && a, DefaultArgsTupleType &&  defaultParams )
         {
             //return args<T...>{ std::forward<TheType>( a ).template getArgument<T>() ... };
             return args<T...>{ std::forward<TheType>( a ).template getOptionalArgument<T>( std::forward<DefaultArgsTupleType>( defaultParams ) ) ... };
         }
+
+
+    template <typename GivenArgsType, typename ... DefaultArgType >
+    static auto create( GivenArgsType && givenArgs, DefaultArgType && ... defaultArg )
+        {
+            return createImpl( std::forward<GivenArgsType>( givenArgs ), std::make_tuple( std::forward<DefaultArgType>( defaultArg ) ... ) );
+
+            //return NewArgType::New( std::forward<ArgsType>( args ), std::make_tuple( std::forward<T>(defaultParams) ... ) );
+        }
+
 #endif
 
 
@@ -450,7 +470,7 @@ constexpr bool has_v = U::template has_t<Tag>::value;
 
 
 
-#if 1
+#if 0
 
 
 template <typename ArgsType,typename ... T>
