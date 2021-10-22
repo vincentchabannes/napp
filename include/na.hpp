@@ -105,36 +105,20 @@ struct type<T,tag,reference_object>
     template <typename T2>
     using required_as_t = typename detail::infer_type_t<T2,tag>;
 
-    //template <typename V>
-    //type(V && t) : M_value(std::forward<V>(t)) { std::cout << "ref_object" << std::endl; }
-#if 0
-    template <typename V>
-    type(V & t) : M_value(t) { std::cout << "ref_object" << std::endl; }
-#elif 0
-    template <typename V,std::enable_if_t< std::is_lvalue_reference_v<V&&>, bool> = true>
-    type(V && t) : M_value(std::forward<V>(t)) { std::cout << "ref_object" << std::endl; }
-#else
     type(T & t) : M_value(t) { std::cout << "ref_object-0-" << std::endl; }
 
     type(type &&) = default;//delete;
     type(type const&) = delete;
 
-    //template <typename V,std::enable_if_t< std::is_lvalue_reference_v<V&&> && std::is_base_of_v<V/*std::remove_reference_t<V>*/,T> , bool> = true>
-    //template <typename V,std::enable_if_t< std::is_lvalue_reference_v<V&&> && std::is_base_of_v<std::remove_cv_t<std::remove_reference_t<V>>/*std::remove_reference_t<V>*/,std::remove_cv_t<T>> , bool> = true>
     template <typename V,std::enable_if_t< std::is_lvalue_reference_v<V&&> && std::is_base_of_v<std::decay_t<T>,std::decay_t<V>> , bool> = true>
     type(V && t) : M_value(std::forward<V>(t)) { std::cout << "ref_object" << std::endl; }
-#endif
+
     template <typename V,std::enable_if_t< std::is_rvalue_reference_v<V&&> /*&& !std::is_same_v<std::decay_t<T>,std::decay_t<V>>*/, bool> = true>
-    //type(V && t) : M_tmp(T(std::forward<V>(t))), M_value( std::any_cast<T&>(M_tmp) ) { std::cout << "BIS ref_object-1-" << std::endl; }
     type(V && t) : M_tmp(std::make_shared<T>(std::forward<V>(t))), M_value( *std::any_cast<std::shared_ptr<T>&>(M_tmp).get() ) { std::cout << "BIS ref_object-1-" << std::endl; }
 
-    //template <typename V,std::enable_if_t< std::is_lvalue_reference_v<V&&> && !std::is_base_of_v<V/*std::remove_reference_t<V>*/,T>, bool> = true>
     template <typename V,std::enable_if_t< std::is_lvalue_reference_v<V&&> && !std::is_base_of_v<std::decay_t<T>,std::decay_t<V>>, bool> = true>
     type(V && t) : M_tmp(std::make_shared<T>(std::forward<V>(t))), M_value( *std::any_cast<std::shared_ptr<T>&>(M_tmp).get() ) { std::cout << "BIS ref_object-2-" << std::endl; }
-    //type(V && t) : M_tmp(T(std::forward<V>(t))), M_value( std::any_cast<T&>(M_tmp) ) { std::cout << "BIS ref_object-2-" << std::endl; }
 
-    //template <typename V,std::enable_if_t< std::is_lvalue_reference_v<V&&> && !std::is_base_of_v<std::decay_t<T>,std::decay_t<V>>, bool> = true>
-    //type( V && t, std::any const& ) :
 
     template <typename T2, typename tag2,typename ObjectType2> friend class type;
 
@@ -149,7 +133,8 @@ struct type<T,tag,reference_object>
     template <typename T2>
     //type( type<T2,tag,reference_object> && t ) : M_tmp( std::move( t.M_tmp ) ), M_value( std::move(std::forward<type<T2,tag,reference_object>>(t).M_value) ) {}
     //type( type<T2,tag,reference_object> && t ) : M_tmp( std::move( t.M_tmp ) ), M_value( std::move( static_cast<type<T2,tag,reference_object>&&>(t).M_value) ) {}
-    type( type<T2,tag,reference_object> && t ) : type( std::forward<type<T2,tag,reference_object>>(t).M_value ) {}
+    //type( type<T2,tag,reference_object> && t ) : type( std::forward<type<T2,tag,reference_object>>(t).M_value ) {}
+    type( type<T2,tag,reference_object> && t ) : type( std::move(t).M_value ) {}
 
 
     T & value()  { return M_value; }
@@ -161,25 +146,6 @@ private :
 
 };
 
-#if 0
-template <typename T>
-struct ownership_object : std::conditional<
-    std::is_lvalue_reference_v<T>,
-    reference_object,
-    owner_object>
-{};
-
-template <typename T,typename tag>
-struct infer_type
-{
-    using object_type = typename ownership_object<T>::type;
-    using value_type = std::remove_reference_t<T>;
-    using type = type<value_type,tag,object_type>;
-};
-
-template <typename T,typename tag>
-using infer_type_t = typename infer_type<T,tag>::type;
-#endif
 } // detail
 
 
@@ -227,26 +193,12 @@ constexpr named_parameter<T> parameter;
 
 
 
-#if 0
-template <typename T,typename ValueType>
-struct DefaultParameter
-{
-    DefaultParameter() = delete;
-    DefaultParameter( ValueType && v ) : M_value( std::forward<ValueType>( v ) ) {}
-    DefaultParameter( DefaultParameter const& ) = delete;
-    DefaultParameter( DefaultParameter && ) = delete;
-private :
-    ValueType M_value;
-};
-#endif
 template <typename Tag,typename ValueType>
 struct DefaultParameter : type<ValueType,Tag>
 {
     DefaultParameter() = delete;
     template <typename U>
     DefaultParameter( U && v ) : type<ValueType,Tag>( std::forward<U>( v ) ) {}
-
-    //DefaultParameter( ValueType && v ) : type<ValueType,Tag>( std::forward<ValueType>( v ) ) {}
     DefaultParameter( DefaultParameter const& ) = delete;
     DefaultParameter( DefaultParameter && ) = default;//delete;
 };
@@ -259,43 +211,6 @@ auto default_parameter( ValueType && val )
 }
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-template<typename U, int Id, int MaxId, typename TupleType>
-constexpr auto && getImpl(TupleType && t)
-{
-    static_assert( Id< MaxId );
-    if constexpr ( std::is_same_v<U, typename std::tuple_element_t<Id, std::decay_t<TupleType> >::tag_type > )
-                     return std::get<Id>( std::forward<TupleType>(t) ).value();
-    else
-        return getImpl<U,Id+1,MaxId,TupleType>( std::forward<TupleType>(t ));
-}
-template<typename U, int Id, int MaxId, typename TupleType,typename DefaultType>
-constexpr auto && getOptionalImpl(TupleType && t, DefaultType && defaultValue )
-{
-    if constexpr ( Id>= MaxId )
-    {
-        if constexpr ( std::is_invocable_v<typename DefaultType::value_type> )
-                         return std::move( std::forward<DefaultType>( defaultValue ).value() () );
-        else
-            return std::forward<DefaultType>( defaultValue ).value();
-    }
-    else if constexpr ( std::is_same_v<U, typename std::tuple_element_t<Id, std::decay_t<TupleType> >::tag_type > )
-                          return std::get<Id>( std::forward<TupleType>(t) ).value();
-    else
-        return getOptionalImpl<U,Id+1,MaxId>( std::forward<TupleType>(t), std::forward<DefaultType>( defaultValue ) );
-}
 
 
 
@@ -348,124 +263,85 @@ struct args
 #else
     template <typename ... U>
     args(U&& ... u) : values(to_tuple(std::forward<U>(u)...)) {}
-    // template <typename UU,typename ... U>
-    // args(UU && uu,U&& ... u) : values(to_tuple(std::forward<UU>(uu),std::forward<U>(u)...)) { std::cout << "baznzna 2" << std::endl; }
 
     // TODO CHECK U IS NOT NA::args
     template <typename U>
-    args(U&&  u) : values(std::forward<U>(u)) { std::cout << "baznzna" << std::endl;}
+    args(U&&  u) : values(std::forward<U>(u)) {}
 #endif
     args() = delete;
     args( args const& ) = delete;
     //args( args && ) = delete;
 
 
-    template <typename TheType>
-    constexpr auto && get() const
-        {
-            if constexpr ( false ) // non template type
-                             return std::get<TheType>( this->values ).value;
-            else
-                return getImpl<typename TheType::tag_type,0,sizeof...(T)>( this->values );
-        }
-    template <typename TheType>
-    constexpr auto && get()
-    {
-        if constexpr ( false ) // non template type
-        return std::get<TheType>( this->values ).value;
-        else
-            return getImpl<typename TheType::tag_type,0,sizeof...(T)>( this->values );
-    }
+    template <typename NamedArgType>
+    constexpr auto const& get() const { return this->getArgument<NamedArgType>().value(); }
 
-    template <typename TheType,typename DefaultType>
-    constexpr auto const& /*&&*/ get_optional( DefaultType && defaultValue ) const// &
+    template <typename NamedArgType>
+    constexpr auto & get() { return this->getArgument<NamedArgType>().value(); }
+
+    template <typename NamedArgType,typename DefaultType>
+    constexpr auto && /*const&*/ /*&&*/ get_optional( DefaultType && defaultValue ) const// &
         {
-#if 0
-            if constexpr ( false ) // non template type
-                             return std::get<TheType>( this->values ).value;
-            else
-                return getOptionalImpl<typename TheType::tag_type,0,sizeof...(T)>( this->values, NA::default_parameter<TheType>( std::forward<DefaultType>( defaultValue ) ) );
-                //return getOptionalImpl<typename TheType::tag_type,0,sizeof...(T)>( this->values, std::forward<DefaultType>( defaultValue ) );
-#endif
-            if constexpr ( has_t<TheType>::value )
-                             return this->get<TheType>();
+            if constexpr ( has_t<NamedArgType>::value )
+                return this->get<NamedArgType>();
             else
             {
-                auto defaultArg = NA::default_parameter<TheType>( std::forward<DefaultType>( defaultValue ) );
+                auto defaultArg = NA::default_parameter<NamedArgType>( std::forward<DefaultType>( defaultValue ) );
                 using the_default_arg_type = std::decay_t<decltype(defaultArg)>;
-#if 0
-                M_tmps.push_back( std::make_shared<the_default_arg_type>( std::move(defaultArg) ) );
-
-                if constexpr ( std::is_invocable_v<typename the_default_arg_type::value_type> )
-                                 return std::move( std::any_cast<std::shared_ptr<the_default_arg_type> const&>(M_tmps.back()).get()->value()() );
-                else
-                    return std::any_cast<std::shared_ptr<the_default_arg_type> const&>(M_tmps.back()).get()->value();
-#else
 
                 if constexpr ( std::is_invocable_v<typename the_default_arg_type::value_type> )
                 {
-                auto defaultArg2 = NA::default_parameter<TheType>( defaultArg.value()() );
-                using the_default_arg2_type = std::decay_t<decltype(defaultArg2)>;
-                M_tmps.push_back( std::make_shared<the_default_arg2_type>( std::move(defaultArg2) ) );
-
-                                 return std::any_cast<std::shared_ptr<the_default_arg2_type> const&>(M_tmps.back()).get()->value();
-                                 }
+                    // TODO : here we guess lambda return valuue (not a ref)
+                    auto defaultArg2 = NA::default_parameter<NamedArgType>( defaultArg.value()() );
+                    using the_default_arg2_type = std::decay_t<decltype(defaultArg2)>;
+                    M_tmps.push_back( std::make_shared<the_default_arg2_type>( std::move(defaultArg2) ) );
+                    return std::any_cast<std::shared_ptr<the_default_arg2_type> const&>(M_tmps.back()).get()->value();
+                }
                 else
                 {
                     M_tmps.push_back( std::make_shared<the_default_arg_type>( std::move(defaultArg) ) );
                     return std::any_cast<std::shared_ptr<the_default_arg_type> const&>(M_tmps.back()).get()->value();
                 }
-
-#endif
-
             }
         }
-#if 0
-    template <typename TheType,typename DefaultType>
-    constexpr auto && get_optional( DefaultType && defaultValue ) &&
+
+    template <typename NamedArgType>
+    constexpr auto & getArgument() &
         {
             if constexpr ( false ) // non template type
-            return std::get<TheType>( std::move( this->values ) ).value;
+                return std::get<NamedArgType>( this->values );
             else
-                return getOptionalImpl<typename TheType::tag_type,0,sizeof...(T)>( std::move( this->values ), NA::default_parameter<TheType>( std::forward<DefaultType>( defaultValue ) ) );
-            //return getOptionalImpl<typename TheType::tag_type,0,sizeof...(T)>( this->values, std::forward<DefaultType>( defaultValue ) );
+                return getImplBIS<typename NamedArgType::tag_type,0,sizeof...(T)>( this->values );
         }
-#endif
-
-    std::tuple<T...> values;
-
-    mutable std::vector<std::any> M_tmps;
-    //mutable std::any M_tmp;
-
-    template <typename TheType>
-    constexpr auto && getBIS() const &
+    template <typename NamedArgType>
+    constexpr auto const& getArgument() const &
+    {
+        if constexpr ( false ) // non template type
+            return std::get<NamedArgType>( this->values ).value;
+        else
+            return getImplBIS<typename NamedArgType::tag_type,0,sizeof...(T)>( this->values );
+    }
+    template <typename NamedArgType>
+    constexpr auto && getArgument() &&
         {
             if constexpr ( false ) // non template type
-                             return std::get<TheType>( this->values ).value;
+                return std::get<NamedArgType>( std::move( this->values ) );
             else
-                return getImplBIS<typename TheType::tag_type,0,sizeof...(T)>( this->values );
-        }
-    template <typename TheType>
-    constexpr auto && getBIS() &&
-        {
-            if constexpr ( false ) // non template type
-                             return std::get<TheType>( this->values ).value;
-            else
-                return getImplBIS<typename TheType::tag_type,0,sizeof...(T)>( std::move( this->values ) );
+                return getImplBIS<typename NamedArgType::tag_type,0,sizeof...(T)>( std::move( this->values ) );
         }
 
 #if 1
     template <typename TheType>
-    static auto /*&&*/ New( TheType && a )
+    static auto New( TheType && a )
         {
-            //return  std::forward<TheType>( a );
-            //return std::move( args<T...>{ T{std::move( std::forward<TheType>( a ).template get<T>() )} ... } );
-            //return std::move( args<T...>{ std::forward<TheType>( a ).template getBIS<T>() ... } );
-            //return args<T...>{ std::forward<TheType>( a ).template getBIS<T>() ... };
-            //return std::move( args<T...>{ std::forward<TheType>( a ).template getBIS<T>() ... } );
-            return args<T...>{ std::forward<TheType>( a ).template getBIS<T>() ... };
+            return args<T...>{ std::forward<TheType>( a ).template getArgument<T>() ... };
         }
 #endif
+
+
+private :
+    std::tuple<T...> values;
+    mutable std::vector<std::any> M_tmps; // store optional arg given in get_optional
 };
 
 
