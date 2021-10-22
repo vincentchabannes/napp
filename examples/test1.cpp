@@ -96,17 +96,13 @@ std::string test2( NA::args<TT...> && v )
     std::ostringstream res;
     res << v.template get<first_name>()
         << " "
-         << v.template get_optional<last_name>("default_last_name")
+         << v.template get_else<last_name>("default_last_name")
         << " "
-        << v.template get_optional<data>( "default_data_value" )
-        //<< v.template get_optional<data>( std::string("default_data_value") )
-        //<< v.template get_optional<data>( Foo(3,2)/*std::string("default_data_value")*/ )
+        << v.template get_else<data>( "default_data_value" )
         << " "
-        << v.template get_optional<data>( [](){ return "default_data_lambda"; } );
-    v.template get_optional<data>( uu );
-    v.template get_optional<data>( std::string("default_data_value") );
+        << v.template get_else_invocable<data>( [](){ return "default_data_lambda"; } );
 
-    std::cout << "test2 : " << res.str() << std::endl;
+    //std::cout << "test2 : " << res.str() << std::endl;
     return res.str();
 }
 
@@ -178,6 +174,11 @@ void test4( test4_arg_type<T> && v )
 
     if constexpr ( NA::has_v<first_name_string,test4_arg_type<T> > )
         std::cout << "fn="<<v.template get<first_name_string>() <<std::endl;
+
+
+    // std::cout << "fn arg="<<v.template getArgument<first_name>() <<std::endl;
+
+
 }
 
 template <typename ... Ts>
@@ -193,13 +194,58 @@ void test4( Ts && ... v )
     NA::args<Ts...> a{ std::forward<Ts>(v)... };
     using thedata_arg_type = std::decay_t<decltype(a.template get<data>())>;
     test4<thedata_arg_type>( test4_arg_type<thedata_arg_type>::create( std::move(a), NA::default_parameter<first_name>( std::string("aaa") ) ) );
+    //test4<thedata_arg_type>( test4_arg_type<thedata_arg_type>::create( std::move(a), NA::default_parameter<first_name>( "aaa" ) ) );
 }
 
 
+template <typename ... TT>
+constexpr auto test5( NA::args<TT...> && v )
+{
+#if 0
+    //constexpr auto hola = [v = std::move(v) ]() constexpr { return v; };
+    auto hola = []( auto && q ) constexpr {
+                    //std::cout << std::integral_constant<int, q.template get<first_name>() >::value << std::endl;
+                    auto && fn = q.template get<first_name>();
+                    auto && ln = q.template get<last_name>();
+                    return fn+ln;
+                };
 
+    //constexpr auto hole = hola(v);
+    //constexpr auto hola = v.template get<first_name>();
+    //std::integral_constant<int, test5( aa )>::value;
+    //return v.template get<first_name>();
+    //std::cout << std::integral_constant<int, hola(v)>::value << std::endl;
+
+    return hola(v);
+#endif
+    auto && fn = v.template get<first_name>();
+    auto && ln = v.template get<last_name>();
+    return fn+ln;
+
+}
+
+template <typename ... Ts>
+constexpr auto test5(  Ts && ... v )
+{
+    //return NA::args<Ts...>{ std::forward<Ts>(v)... }.template get<first_name>();
+    //constexpr auto vv = NA::args<Ts...>{ std::forward<Ts>(v)... };//.template get<first_name>();
+    //constexpr auto vv = NA::args<Ts...>{ v... };//.template get<first_name>();
+    //constexpr auto vvvv = NA::make_arguments( std::forward<Ts>(v)... );
+    //constexpr auto vvvva = NA::make_arguments( std::forward<Ts>(v) );
+    //return 0;
+
+    //return NA::make_arguments( std::forward<Ts>(v) );
+
+
+    return test5( NA::make_arguments( std::forward<Ts>(v)... ) );
+
+}
+
+void abc( typename first_name::template required_as_t<std::string&> &&  v ) {}
 
 int main()
 {
+#if 1
     // std::string f;
     // test2bbb(_first_name= "James", _last_name="Bond",_data=Foo(6,5) );
     // test2bbb(_first_name= std::string(f), _last_name=std::string(f),_data=Foo(6,5) );
@@ -216,7 +262,7 @@ int main()
     assert( test1({_first_name= fn, _last_name="Bond" }) == "James Bond" );
 
     assert( test2(_first_name="James" ) == "James default_last_name default_data_value default_data_lambda" );
-#if 1
+
     assert( test2(_first_name=fn, _last_name="Bond" ) == "James Bond default_data_value default_data_lambda" );
     assert( test2(_last_name= "Bond", _first_name="James" ) == "James Bond default_data_value default_data_lambda" );
     Foo b(3,5);
@@ -264,11 +310,21 @@ int main()
 #endif
 
 
-    if constexpr ( NA::is_named_argument_v<first_name> )
-                     std::cout << "YESY" << std::endl;
-    if constexpr ( !NA::is_named_argument_v<first_name_tag> )
-                     std::cout << "YESY" << std::endl;
+#if 0
+    static constexpr auto aa = NA::make_argument<first_name>(5);
+    constexpr auto vvvv = NA::make_arguments( aa );
+    constexpr auto yyyy = vvvv.template get<first_name>();
+    std::cout << std::integral_constant<int, yyyy>::value << std::endl;
 
+    // std::cout << std::integral_constant<int, test5( aa )>::value << std::endl;
+    //std::cout << std::integral_constant<int, test5( aa ).template get<first_name>()>::value << std::endl;
+    //std::cout << std::integral_constant<int, test5( NA::make_argument<first_name>(5) )>::value << std::endl;
+    std::cout << std::integral_constant<int, test5( _first_name=5, _last_name=10 )>::value << std::endl;
+ #endif
+
+    //abc( NA::default_parameter<first_name>( "aaa" ) );
+    // std::string a;
+    // abc( NA::default_parameter<first_name>( a ) );
 
     return 0;
 }

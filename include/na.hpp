@@ -63,6 +63,12 @@ using infer_type_t = typename infer_type<T,tag>::type;
 struct named_argument_base {};
 
 
+
+// template <typename NamedArgType,typename ValueType>
+// struct DefaultParameter;
+
+
+
 template <typename T, typename tag>
 struct type<T,tag,owner_object> : named_argument_base
 {
@@ -81,12 +87,16 @@ struct type<T,tag,owner_object> : named_argument_base
     type(type &&) = default;
     type(type const&) = delete;
 
-    template <typename V>
-    type(V && t) : M_value(std::forward<V>(t)) { std::cout << "owner_object" << std::endl; }
-
+    template <typename V, std::enable_if_t< std::is_constructible_v<T,V&&> , bool> = true>
+    constexpr type(V && t) : M_value(std::forward<V>(t)) { /*std::cout << "owner_object" << std::endl;*/ }
 
     template <typename T2>
-    type( type<T2,tag,reference_object> && t ) : M_value(std::forward<type<T2,tag,reference_object>>(t).value()) { std::cout << "owner_object-2-" << std::endl; } // TODO here no apply copy
+    constexpr type( type<T2,tag,reference_object> && t ) : M_value(std::move(t).value()) { /*std::cout << "owner_object-2-" << std::endl;*/ } // TODO here no apply copy
+    //type( type<T2,tag,reference_object> && t ) : M_value(std::forward<type<T2,tag,reference_object>>(t).value()) { std::cout << "owner_object-2-" << std::endl; } // TODO here no apply copy
+
+
+    // template <typename NamedArgType,typename ValueType>
+    // type( DefaultParameter<NamedArgType,ValueType> && t ) { std::cout << "AAAAAAAAAAAAAAAAAAAAAAAAAAaiaiaiaiaiai" << std::endl;}
 
     constexpr T & value() & { return M_value; }
     constexpr T const & value() const & { return M_value; }
@@ -116,7 +126,7 @@ struct type<T,tag,reference_object> : named_argument_base
     template <typename V,std::enable_if_t< std::is_lvalue_reference_v<V&&> && std::is_base_of_v<std::decay_t<T>,std::decay_t<V>> , bool> = true>
     type(V && t) : M_value(std::forward<V>(t)) { std::cout << "ref_object" << std::endl; }
 
-    template <typename V,std::enable_if_t< std::is_rvalue_reference_v<V&&> /*&& !std::is_same_v<std::decay_t<T>,std::decay_t<V>>*/, bool> = true>
+    template <typename V,std::enable_if_t< std::is_rvalue_reference_v<V&&>   && !std::is_base_of_v<named_argument_base,std::decay_t<V> >      /*&& !std::is_same_v<std::decay_t<T>,std::decay_t<V>>*/, bool> = true>
     type(V && t) : M_tmp(std::make_shared<T>(std::forward<V>(t))), M_value( *std::any_cast<std::shared_ptr<T>&>(M_tmp).get() ) { std::cout << "BIS ref_object-1-" << std::endl; }
 
     template <typename V,std::enable_if_t< std::is_lvalue_reference_v<V&&> && !std::is_base_of_v<std::decay_t<T>,std::decay_t<V>>, bool> = true>
@@ -262,15 +272,22 @@ struct DefaultParameter : named_argument_t<NamedArgType,ValueType>
     DefaultParameter( U && v ) : named_argument_t<NamedArgType,ValueType>/*type<ValueType,Tag>*/( std::forward<U>( v ) ) {}
     DefaultParameter( DefaultParameter const& ) = delete;
     DefaultParameter( DefaultParameter && ) = default;//delete;
+
+#if 0
+    using super_type = named_argument_t<NamedArgType,ValueType>;
+    template <typename T2>
+    operator detail::type<T2,typename super_type::tag_type,detail::owner_object> () { std::cout << "PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP" << std::endl;}
+#endif
+
 };
 
 
 template <typename NamedArgType,typename ValueType>
 auto default_parameter( ValueType && val )
 {
-    //return DefaultParameter<NamedArgType,ValueType>{ std::forward<ValueType>( val ) };
-
-    return named_argument_t<NamedArgType,ValueType>{ std::forward<ValueType>( val ) };
+    return DefaultParameter<NamedArgType,ValueType>{ std::forward<ValueType>( val ) };
+    //return (named_argument_t<NamedArgType,ValueType>&&) DefaultParameter<NamedArgType,ValueType>{ std::forward<ValueType>( val ) };
+    // return named_argument_t<NamedArgType,ValueType>{ std::forward<ValueType>( val ) };
 }
 
 
@@ -281,7 +298,7 @@ template<typename U, int Id, int MaxId, typename TupleType>
 constexpr auto&& getImplBIS(TupleType && t)
 {
     static_assert( Id< MaxId );
-    if constexpr ( std::is_same_v<U, typename std::tuple_element_t<Id, std::decay_t<TupleType> >::tag_type > )
+    if constexpr ( std::is_same_v<U, typename std::decay_t<std::tuple_element_t<Id, std::decay_t<TupleType> > >::tag_type > )
                      return std::get<Id>( std::forward<TupleType>(t) );//.value();
     else
         return getImplBIS<U,Id+1,MaxId,TupleType>( std::forward<TupleType>(t ));
@@ -327,6 +344,22 @@ to_tuple(T...) -> to_tuple<T...>;
 
 
 
+template <typename Tag,size_t index, class... Ts>
+constexpr auto tuple_fold() {
+    if constexpr( index >= sizeof...(Ts) )
+                    return index;
+    else if constexpr ( std::is_same_v<typename Tag::tag_type, typename std::decay_t<std::tuple_element_t<index, std::tuple<Ts...> > >::tag_type > )
+                          return index;
+    else
+        return tuple_fold<Tag,index+1,Ts...>();
+
+}
+template <typename Tag,typename ... Ts>
+constexpr auto tuple_index()
+{
+    return tuple_fold<Tag,0,Ts...>();
+}
+
 template <typename ... T>
 struct args
 {
@@ -334,17 +367,18 @@ struct args
     // template <typename Tag>
     // constexpr bool has = has_type<Tag::>
     template <typename Tag>
-    using has_t = std::disjunction<std::is_same<typename T::tag_type, typename Tag::tag_type>...>;
+    using has_t = std::disjunction<std::is_same<typename std::decay_t<T>::tag_type, typename Tag::tag_type>...>;
+
 #if 0
     template <typename ... U>
     args(U&& ... u) : values(to_tuple(std::forward<U>(u)...)) {}
 #else
     template <typename ... U>
-    args(U&& ... u) : values(to_tuple(std::forward<U>(u)...)) {}
+    constexpr args(U&& ... u) : values(to_tuple(std::forward<U>(u)...)) {}
 
     // TODO CHECK U IS NOT NA::args
     template <typename U>
-    args(U&&  u) : values(std::forward<U>(u)) {}
+    constexpr args(U&&  u) : values(std::forward<U>(u)) {}
 #endif
     args() = delete;
     args( args const& ) = delete;
@@ -357,8 +391,9 @@ struct args
     template <typename NamedArgType>
     constexpr auto & get() { return this->getArgument<NamedArgType>().value(); }
 
+#if 1
     template <typename NamedArgType,typename DefaultType>
-    constexpr auto && /*const&*/ /*&&*/ get_optional( DefaultType && defaultValue ) const// &
+    constexpr auto && /*const&*/ get_else( DefaultType && defaultValue ) const// &
         {
             if constexpr ( has_t<NamedArgType>::value )
                 return this->get<NamedArgType>();
@@ -366,28 +401,34 @@ struct args
             {
                 auto defaultArg = NA::default_parameter<NamedArgType>( std::forward<DefaultType>( defaultValue ) );
                 using the_default_arg_type = std::decay_t<decltype(defaultArg)>;
-
-                if constexpr ( std::is_invocable_v<typename the_default_arg_type::value_type> )
-                {
-                    // TODO : here we guess lambda return valuue (not a ref)
-                    auto defaultArg2 = NA::default_parameter<NamedArgType>( defaultArg.value()() );
-                    using the_default_arg2_type = std::decay_t<decltype(defaultArg2)>;
-                    M_tmps.push_back( std::make_shared<the_default_arg2_type>( std::move(defaultArg2) ) );
-                    return std::any_cast<std::shared_ptr<the_default_arg2_type> const&>(M_tmps.back()).get()->value();
-                }
-                else
-                {
-                    M_tmps.push_back( std::make_shared<the_default_arg_type>( std::move(defaultArg) ) );
-                    return std::any_cast<std::shared_ptr<the_default_arg_type> const&>(M_tmps.back()).get()->value();
-                }
+                M_tmps.push_back( std::make_shared<the_default_arg_type>( std::move(defaultArg) ) );
+                return std::any_cast<std::shared_ptr<the_default_arg_type> const&>(M_tmps.back()).get()->value();
             }
         }
 
+    template <typename NamedArgType,typename DefaultType>
+    constexpr auto && /*const&*/ get_else_invocable( DefaultType && defaultValue ) const// &
+        {
+            if constexpr ( has_t<NamedArgType>::value )
+                return this->get<NamedArgType>();
+            else
+            {
+                static_assert( std::is_invocable_v<DefaultType>, "is_invocable_v should be true" );
+                auto defaultArg = NA::default_parameter<NamedArgType>( std::forward<DefaultType>( defaultValue ) );
+                using the_default_arg_type = std::decay_t<decltype(defaultArg)>;
+                // TODO : here we guess lambda return valuue (not a ref)
+                auto defaultArg2 = NA::default_parameter<NamedArgType>( defaultArg.value()() );
+                using the_default_arg2_type = std::decay_t<decltype(defaultArg2)>;
+                M_tmps.push_back( std::make_shared<the_default_arg2_type>( std::move(defaultArg2) ) );
+                return std::any_cast<std::shared_ptr<the_default_arg2_type> const&>(M_tmps.back()).get()->value();
+            }
+        }
+#endif
     template <typename NamedArgType>
     constexpr auto & getArgument() &
         {
-            if constexpr ( false ) // non template type
-                return std::get<NamedArgType>( this->values );
+            if constexpr ( has_t<NamedArgType>::value ) // non template type
+                return std::get< tuple_index<NamedArgType,T...>() >( this->values );
             else
                 return getImplBIS<typename NamedArgType::tag_type,0,sizeof...(T)>( this->values );
         }
@@ -402,6 +443,7 @@ struct args
     template <typename NamedArgType>
     constexpr auto && getArgument() &&
         {
+
             if constexpr ( false ) // non template type
                 return std::get<NamedArgType>( std::move( this->values ) );
             else
@@ -412,36 +454,33 @@ struct args
     template <typename NamedArgType, typename DefaultArgsTupleType>
     constexpr auto && getOptionalArgument( DefaultArgsTupleType && defaultArgs ) //&&
     {
-        if constexpr ( false ) // non template type
-        return std::get<NamedArgType>( std::move( this->values ) );
-        else
-            return getImplBIS2<typename NamedArgType::tag_type,0,sizeof...(T)>( std::move( this->values ), std::forward<DefaultArgsTupleType>( defaultArgs )  );
+        return getImplBIS2<typename NamedArgType::tag_type,0,sizeof...(T)>( std::move( this->values ), std::forward<DefaultArgsTupleType>( defaultArgs )  );
     }
 
 
-#if 1
+
+
+    template <typename GivenArgsType, typename ... DefaultArgType >
+    static constexpr auto create( GivenArgsType && givenArgs, DefaultArgType && ... defaultArg )
+        {
+            return createImpl( std::forward<GivenArgsType>( givenArgs ), std::make_tuple( std::forward<DefaultArgType>( defaultArg ) ... ) );
+        }
+
+
+private :
     template <typename TheType, typename DefaultArgsTupleType >
-    static auto createImpl( TheType && a, DefaultArgsTupleType &&  defaultParams )
+    static constexpr auto createImpl( TheType && a, DefaultArgsTupleType &&  defaultParams )
         {
             //return args<T...>{ std::forward<TheType>( a ).template getArgument<T>() ... };
             return args<T...>{ std::forward<TheType>( a ).template getOptionalArgument<T>( std::forward<DefaultArgsTupleType>( defaultParams ) ) ... };
         }
 
 
-    template <typename GivenArgsType, typename ... DefaultArgType >
-    static auto create( GivenArgsType && givenArgs, DefaultArgType && ... defaultArg )
-        {
-            return createImpl( std::forward<GivenArgsType>( givenArgs ), std::make_tuple( std::forward<DefaultArgType>( defaultArg ) ... ) );
-
-            //return NewArgType::New( std::forward<ArgsType>( args ), std::make_tuple( std::forward<T>(defaultParams) ... ) );
-        }
-
-#endif
-
-
 private :
     std::tuple<T...> values;
+#if 1
     mutable std::vector<std::any> M_tmps; // store optional arg given in get_optional
+#endif
 };
 
 
@@ -468,28 +507,6 @@ constexpr bool has_v = U::template has_t<Tag>::value;
 
 
 
-
-
-#if 0
-
-
-template <typename ArgsType,typename ... T>
-auto extendImpl( args<T...> && args )
-{
-
-
-}
-
-#if 1
-template <typename NewArgType, typename ArgsType, typename ... T>
-auto /*&&*/ extend( /*args<ArgsType>*/ArgsType && args, T && ... defaultParams )
-{
-    return NewArgType::New( std::forward<ArgsType>( args ), std::make_tuple( std::forward<T>(defaultParams) ... ) );
-}
-
-#endif
-
-#endif
 } //  namespace NA
 
 #endif
