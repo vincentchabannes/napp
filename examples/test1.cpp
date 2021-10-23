@@ -1,8 +1,9 @@
 
-#include "../include/na.hpp"
+#include <iostream>
+
+#include <na.hpp>
 
 #include <string>
-#include <iostream>
 #include <sstream>
 
 #include <cassert>
