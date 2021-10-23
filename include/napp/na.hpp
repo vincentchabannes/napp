@@ -4,10 +4,7 @@
 #ifndef _NAMED_ARGUMENTS_HPP
 #define _NAMED_ARGUMENTS_HPP 1
 
-//#include <iostream>
 #include <tuple>
-//#include <optional>
-//#include <variant>
 #include <any>
 #include <vector>
 
@@ -39,7 +36,6 @@ struct reference_object {};
 template <typename T, typename tag,typename ObjectType>
 struct type;
 
-#if 1
 template <typename T>
 struct ownership_object : std::conditional<
     std::is_lvalue_reference_v<T>,
@@ -58,7 +54,6 @@ struct infer_type
 template <typename T,typename tag>
 using infer_type_t = typename infer_type<T,tag>::type;
 
-#endif
 
 struct named_argument_base {};
 
@@ -88,7 +83,7 @@ struct type<T,tag,owner_object> : named_argument_base
     type(type const&) = delete;
 
     template <typename V, std::enable_if_t< std::is_constructible_v<T,V&&> , bool> = true>
-    constexpr type(V && t) : M_value(std::forward<V>(t)) { /*std::cout << "owner_object" << std::endl;*/ }
+    constexpr type(V && t) : M_value(std::forward<V>(t)) {}
 
     template <typename T2>
     constexpr type( type<T2,tag,reference_object> && t ) : M_value(std::move(t).value()) { /*std::cout << "owner_object-2-" << std::endl;*/ } // TODO here no apply copy
@@ -118,19 +113,19 @@ struct type<T,tag,reference_object> : named_argument_base
     template <typename T2>
     using required_as_t = typename detail::infer_type_t<T2,tag>;
 
-    type(T & t) : M_value(t) { std::cout << "ref_object-0-" << std::endl; }
+    type(T & t) : M_value(t) {}
 
     type(type &&) = default;//delete;
     type(type const&) = delete;
 
     template <typename V,std::enable_if_t< std::is_lvalue_reference_v<V&&> && std::is_base_of_v<std::decay_t<T>,std::decay_t<V>> , bool> = true>
-    type(V && t) : M_value(std::forward<V>(t)) { std::cout << "ref_object" << std::endl; }
+    type(V && t) : M_value(std::forward<V>(t)) {}
 
     template <typename V,std::enable_if_t< std::is_rvalue_reference_v<V&&>   && !std::is_base_of_v<named_argument_base,std::decay_t<V> >      /*&& !std::is_same_v<std::decay_t<T>,std::decay_t<V>>*/, bool> = true>
-    type(V && t) : M_tmp(std::make_shared<T>(std::forward<V>(t))), M_value( *std::any_cast<std::shared_ptr<T>&>(M_tmp).get() ) { std::cout << "BIS ref_object-1-" << std::endl; }
+    type(V && t) : M_tmp(std::make_shared<T>(std::forward<V>(t))), M_value( *std::any_cast<std::shared_ptr<T>&>(M_tmp).get() ) {}
 
     template <typename V,std::enable_if_t< std::is_lvalue_reference_v<V&&> && !std::is_base_of_v<std::decay_t<T>,std::decay_t<V>>, bool> = true>
-    type(V && t) : M_tmp(std::make_shared<T>(std::forward<V>(t))), M_value( *std::any_cast<std::shared_ptr<T>&>(M_tmp).get() ) { std::cout << "BIS ref_object-2-" << std::endl; }
+    type(V && t) : M_tmp(std::make_shared<T>(std::forward<V>(t))), M_value( *std::any_cast<std::shared_ptr<T>&>(M_tmp).get() ) {}
 
 
     template <typename T2, typename tag2,typename ObjectType2> friend class type;
@@ -139,7 +134,7 @@ struct type<T,tag,reference_object> : named_argument_base
     template <typename T2>
     type( type<T2,tag,owner_object> && t ) :
         M_tmp(std::make_shared<T>(std::forward<type<T2,tag,owner_object>>(t).value())),
-        M_value( *std::any_cast<std::shared_ptr<T>&>(M_tmp).get() ) { std::cout << "BIS ref_object-3-" << std::endl; }
+        M_value( *std::any_cast<std::shared_ptr<T>&>(M_tmp).get() ) {}
 
 
     // TODO HERE : maybe some case where we can avoid the copy
@@ -400,9 +395,13 @@ struct args
             else
             {
                 auto defaultArg = NA::default_parameter<NamedArgType>( std::forward<DefaultType>( defaultValue ) );
+#if 1
+                return std::move(defaultArg).value();
+#else
                 using the_default_arg_type = std::decay_t<decltype(defaultArg)>;
                 M_tmps.push_back( std::make_shared<the_default_arg_type>( std::move(defaultArg) ) );
                 return std::any_cast<std::shared_ptr<the_default_arg_type> const&>(M_tmps.back()).get()->value();
+#endif
             }
         }
 
@@ -415,12 +414,17 @@ struct args
             {
                 static_assert( std::is_invocable_v<DefaultType>, "is_invocable_v should be true" );
                 auto defaultArg = NA::default_parameter<NamedArgType>( std::forward<DefaultType>( defaultValue ) );
+#if 1
+                auto defaultArg2 = NA::default_parameter<NamedArgType>( std::move(defaultArg).value()() );
+                return std::move(defaultArg2).value();
+#else
                 using the_default_arg_type = std::decay_t<decltype(defaultArg)>;
                 // TODO : here we guess lambda return valuue (not a ref)
                 auto defaultArg2 = NA::default_parameter<NamedArgType>( defaultArg.value()() );
                 using the_default_arg2_type = std::decay_t<decltype(defaultArg2)>;
                 M_tmps.push_back( std::make_shared<the_default_arg2_type>( std::move(defaultArg2) ) );
                 return std::any_cast<std::shared_ptr<the_default_arg2_type> const&>(M_tmps.back()).get()->value();
+#endif
             }
         }
 #endif
@@ -478,7 +482,7 @@ private :
 
 private :
     std::tuple<T...> values;
-#if 1
+#if 0
     mutable std::vector<std::any> M_tmps; // store optional arg given in get_optional
 #endif
 };

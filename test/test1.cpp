@@ -94,10 +94,12 @@ std::string const& uu = "toto";
 template <typename ... TT>
 std::string test2( NA::args<TT...> && v )
 {
+    //std::string hol="default_last_name";
     std::ostringstream res;
     res << v.template get<first_name>()
         << " "
-         << v.template get_else<last_name>("default_last_name")
+        << v.template get_else<last_name>("default_last_name")
+        //<< v.template get_else<last_name>(std::string(hol))
         << " "
         << v.template get_else<data>( "default_data_value" )
         << " "
