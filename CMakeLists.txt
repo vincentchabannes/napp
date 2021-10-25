@@ -21,7 +21,8 @@ include(GNUInstallDirs)
 set(NAPP_TARGET_NAME  ${PROJECT_NAME})
 
 
-option(NAPP_ENABLE_TESTS        "Build the unit tests when BUILD_TESTING is enabled." ${MAIN_PROJECT})
+option(NAPP_ENABLE_TESTS        "Build the unit tests when NAPP_ENABLE_TESTS is enabled." ${MAIN_PROJECT})
+option(NAPP_ENABLE_DOC        "Build the doc examples tests when NAPP_ENABLE_DOC is enabled." ${MAIN_PROJECT})
 
 # option(NAPP_MultipleHeaders     "Use non-amalgamated version of the library." OFF)
 # if (NAPP_MultipleHeaders)
@@ -54,4 +55,9 @@ if (NAPP_ENABLE_TESTS)
     include(CTest)
     enable_testing()
     add_subdirectory(test)
+endif()
+
+
+if (NAPP_ENABLE_DOC)
+  add_subdirectory(doc)
 endif()
