@@ -328,7 +328,6 @@ struct to_tuple : std::tuple<T...>
 template <typename ... T>
 to_tuple(T...) -> to_tuple<T...>;
 
-} // namespace detail
 
 template <typename Tag,size_t index, class... Ts>
 constexpr auto tuple_fold() {
@@ -346,26 +345,29 @@ constexpr auto tuple_index()
     return tuple_fold<Tag,0,Ts...>();
 }
 
+} // namespace detail
+
+
+struct arguments_base {};
+
+template <typename T>
+constexpr bool is_arguments_v = std::is_base_of_v<arguments_base,std::decay_t<T>>;
+
+
 template <typename ... T>
-struct arguments
+struct arguments : arguments_base
 {
     // using tuple_type = std::tuple<T...>;
-    // template <typename Tag>
-    // constexpr bool has = has_type<Tag::>
+ 
     template <typename Tag>
     using has_t = std::disjunction<std::is_same<typename std::decay_t<T>::tag_type, typename Tag::tag_type>...>;
 
-#if 0
-    template <typename ... U>
-    arguments(U&& ... u) : values(detail::to_tuple(std::forward<U>(u)...)) {}
-#else
     template <typename ... U>
     constexpr arguments(U&& ... u) : values(detail::to_tuple(std::forward<U>(u)...)) {}
 
-    // TODO CHECK U IS NOT NA::arguments
-    template <typename U>
+    template <typename U, std::enable_if_t< !is_arguments_v<U>, bool > = true >
     constexpr arguments(U&&  u) : values(std::forward<U>(u)) {}
-#endif
+
     arguments() = delete;
     arguments( arguments const& ) = delete;
     //arguments( arguments && ) = delete;
@@ -457,8 +459,9 @@ struct arguments
     template <typename NamedArgType>
     constexpr auto & getArgument() &
         {
+            //return std::get< detail::tuple_index<NamedArgType,T...>() >( this->values );
             if constexpr ( has_t<NamedArgType>::value ) // non template type
-                return std::get< tuple_index<NamedArgType,T...>() >( this->values );
+                return std::get< detail::tuple_index<NamedArgType,T...>() >( this->values );
             else
                 return detail::getImplBIS<typename NamedArgType::tag_type,0,sizeof...(T)>( this->values );
         }
@@ -519,16 +522,14 @@ constexpr NA::arguments<T...>  make_arguments(T&& ... t)
     return NA::arguments<T...>{ std::forward<T>(t)... };
 }
 
-
-// TODO check U is NA::arguments
 template <typename U,typename ... T>
 constexpr U  make_arguments(T&& ... t)
 {
+    static_assert( is_arguments_v<U> );
     return U{ std::forward<T>(t)... };
 }
 
 
-// TODO check U is NA::arguments
 template <typename Tag,typename U>
 constexpr bool has_v = U::template has_t<Tag>::value;
 
