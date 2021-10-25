@@ -7,7 +7,7 @@
 #include <tuple>
 #include <any>
 //#include <vector>
-#include <optional>
+//#include <optional>
 
 
 #if 0
@@ -219,14 +219,6 @@ using named_argument_tag_t = typename named_argument_tag<TagType>::type;
 
 
 
-//! make a new arg type with value \t
-template <typename NamedArgType,typename T>
-constexpr auto/*type<T,Tag>*/ make_argument(T&& t)
-{
-    return detail::infer_type_t<T,named_argument_tag_t<NamedArgType>>(std::forward<T>(t));
-}
-
-
 template <typename NamedArgType, typename T>
 struct named_argument
 {
@@ -301,6 +293,21 @@ constexpr auto default_parameter( ValueType && val )
 
 
 
+//! make a new arg type with value \t
+template <typename NamedArgType,typename T>
+constexpr auto/*type<T,Tag>*/ make_argument(T&& t)
+{
+    return detail::infer_type_t<T,named_argument_tag_t<NamedArgType>>(std::forward<T>(t));
+}
+
+//! make a new arg type with value \t
+template <typename ArgIdentifierType, typename T,  std::enable_if_t<is_argument_identifier_v<ArgIdentifierType> ,bool> = true >
+constexpr auto make_argument(ArgIdentifierType &&, T&& t)
+{
+    return make_argument<typename std::decay_t<ArgIdentifierType>::identifier_type>( std::forward<T>(t) );
+}
+
+
 
 
 template<typename U, int Id, int MaxId, typename TupleType>
@@ -370,7 +377,7 @@ constexpr auto tuple_index()
 }
 
 template <typename ... T>
-struct args
+struct arguments
 {
     // using tuple_type = std::tuple<T...>;
     // template <typename Tag>
@@ -380,18 +387,18 @@ struct args
 
 #if 0
     template <typename ... U>
-    args(U&& ... u) : values(to_tuple(std::forward<U>(u)...)) {}
+    arguments(U&& ... u) : values(to_tuple(std::forward<U>(u)...)) {}
 #else
     template <typename ... U>
-    constexpr args(U&& ... u) : values(to_tuple(std::forward<U>(u)...)) {}
+    constexpr arguments(U&& ... u) : values(to_tuple(std::forward<U>(u)...)) {}
 
-    // TODO CHECK U IS NOT NA::args
+    // TODO CHECK U IS NOT NA::arguments
     template <typename U>
-    constexpr args(U&&  u) : values(std::forward<U>(u)) {}
+    constexpr arguments(U&&  u) : values(std::forward<U>(u)) {}
 #endif
-    args() = delete;
-    args( args const& ) = delete;
-    //args( args && ) = delete;
+    arguments() = delete;
+    arguments( arguments const& ) = delete;
+    //arguments( arguments && ) = delete;
 
 
     template <typename NamedArgType>
@@ -517,7 +524,7 @@ private :
     static constexpr auto createImpl( TheType && a, DefaultArgsTupleType &&  defaultParams )
         {
             //return args<T...>{ std::forward<TheType>( a ).template getArgument<T>() ... };
-            return args<T...>{ std::forward<TheType>( a ).template getOptionalArgument<T>( std::forward<DefaultArgsTupleType>( defaultParams ) ) ... };
+            return arguments<T...>{ std::forward<TheType>( a ).template getOptionalArgument<T>( std::forward<DefaultArgsTupleType>( defaultParams ) ) ... };
         }
 
 
@@ -526,21 +533,19 @@ private :
 #if 0
     mutable std::vector<std::any> M_tmps; // store optional arg given in get_optional
 #endif
-    //mutable void * M_tmp = nullptr;// = std::any{};
-    //std::optional<void*> M_tmp;
 };
 
 
 
 
 template <typename ... T>
-constexpr NA::args<T...>  make_arguments(T&& ... t)
+constexpr NA::arguments<T...>  make_arguments(T&& ... t)
 {
-    return NA::args<T...>{ std::forward<T>(t)... };
+    return NA::arguments<T...>{ std::forward<T>(t)... };
 }
 
 
-// TODO check U is NA::args
+// TODO check U is NA::arguments
 template <typename U,typename ... T>
 constexpr U  make_arguments(T&& ... t)
 {
@@ -548,7 +553,7 @@ constexpr U  make_arguments(T&& ... t)
 }
 
 
-// TODO check U is NA::args
+// TODO check U is NA::arguments
 template <typename Tag,typename U>
 constexpr bool has_v = U::template has_t<Tag>::value;
 

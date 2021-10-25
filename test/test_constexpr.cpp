@@ -11,7 +11,7 @@ constexpr auto& _element4 = NA::identifier<struct element4_tag>;
 
 
 template <typename ... TT>
-constexpr auto test1( NA::args<TT...> && v )
+constexpr auto test1( NA::arguments<TT...> && v )
 {
     auto && e1 = v.template get<element1>();
     auto && e2 = v.template get_else<element2>( 4 );
@@ -30,6 +30,6 @@ int main()
 {
     static_assert( test1( _element1=5, _element3=10 ) == 5+4+10+7, "wrong result" );
     static_assert( test1( _element3=10, _element1=5 ) == 5+4+10+7, "wrong result" );
-    static_assert( test1(  _element1=5, _element2=9, _element3=10 ) == 5+9+10+7, "wrong result" );
-    static_assert( test1(  _element4=12, _element1=5, _element2=9, _element3=10 ) == 5+9+10+12, "wrong result" );
+    static_assert( test1( _element1=5, _element2=9, _element3=10 ) == 5+9+10+7, "wrong result" );
+    static_assert( test1( _element4=12, _element1=5, _element2=9, _element3=10 ) == 5+9+10+12, "wrong result" );
 }
