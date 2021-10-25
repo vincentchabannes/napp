@@ -108,8 +108,8 @@ std::string test2b( Ts && ... v )
 
 
 using test3_arg_type = NA::arguments<typename first_name::template required_as_t<std::string &>,
-                                typename last_name::template required_as_t<std::string &>,
-                                typename data::template required_as_t<Foo&> >;
+                                     typename last_name::template required_as_t<std::string &>,
+                                     typename data::template required_as_t<Foo&> >;
 void test3( test3_arg_type && v )
 {
     v.template get<first_name>() = "James";
@@ -136,9 +136,6 @@ using test4_arg_type = NA::arguments<
 template <typename T>
 std::string test4( test4_arg_type<T> && v )
 {
-    //std::cout << "fn="<<v.template get<first_name>() <<std::endl;
-    //std::cout << "data="<<v.template get<data>() <<std::endl;
-
     if constexpr ( NA::has_v<first_name_string,test4_arg_type<T> > )
         std::cout << "fn="<<v.template get<first_name_string>() <<std::endl;
 
@@ -162,16 +159,14 @@ std::string test4( test4_arg_type<T> && v )
 template <typename ... Ts>
 std::string test4( Ts && ... v )
 {
-    auto a = NA::make_arguments( std::forward<Ts>(v)... );
-    using thedata_arg_type = std::decay_t<decltype(a.template get<data>())>;
+    auto args = NA::make_arguments( std::forward<Ts>(v)... );
+    using thedata_arg_type = std::decay_t<decltype(args.template get<data>())>;
 
     std::string default_ln = "default_ln";
-    return test4<thedata_arg_type>( test4_arg_type<thedata_arg_type>::create( std::move(a),
-                                                                              //NA::default_parameter<first_name>( std::string("default_fn") )
-                                                                              NA::default_parameter<first_name>( "default_fn" ),
-                                                                              NA::default_parameter<last_name>( default_ln )
+    return test4<thedata_arg_type>( test4_arg_type<thedata_arg_type>::create( std::move(args),
+                                                                              NA::make_default_argument<first_name>( "default_fn" ),
+                                                                              NA::make_default_argument(_last_name, default_ln)
                                                                               ) );
-    //test4<thedata_arg_type>( test4_arg_type<thedata_arg_type>::create( std::move(a), NA::default_parameter<first_name>( "aaa" ) ) );
 }
 
 

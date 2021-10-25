@@ -59,9 +59,6 @@ struct named_argument_base {};
 
 
 
-// template <typename NamedArgType,typename ValueType>
-// struct DefaultParameter;
-
 
 
 template <typename T, typename tag>
@@ -88,10 +85,6 @@ struct type<T,tag,owner_object> : named_argument_base
     template <typename T2>
     constexpr type( type<T2,tag,reference_object> && t ) : M_value(std::move(t).value()) { /*std::cout << "owner_object-2-" << std::endl;*/ } // TODO here no apply copy
     //type( type<T2,tag,reference_object> && t ) : M_value(std::forward<type<T2,tag,reference_object>>(t).value()) { std::cout << "owner_object-2-" << std::endl; } // TODO here no apply copy
-
-
-    // template <typename NamedArgType,typename ValueType>
-    // type( DefaultParameter<NamedArgType,ValueType> && t ) { std::cout << "AAAAAAAAAAAAAAAAAAAAAAAAAAaiaiaiaiaiai" << std::endl;}
 
     constexpr T & value() & { return M_value; }
     constexpr T const & value() const & { return M_value; }
@@ -165,35 +158,27 @@ struct template_type : template_type_base
     using tag_type = tag;
 
     template <typename T>
-    using required_as_t = /*typename*/ detail::infer_type_t<T,tag_type>;//type<T,tag>;
+    using required_as_t = detail::infer_type_t<T,tag_type>;
 
     template <typename T>
-    using apply_t = /*typename*/ detail::infer_type_t<T,tag_type>;//type<T,tag>;
+    using apply_t = detail::infer_type_t<T,tag_type>;
 };
 
 
 } // detail
 
 
-//template <typename T,typename Tag>
-//using type = typename detail::infer_type_t<T,Tag>;
-
 
 
 template <typename T, typename = void>
 struct is_named_argument : std::false_type {};
-
-// trick with decltype(sizeof(T)) to check if T is complete type
+// trick with decltype(sizeof(T)) to check if T is a complete type
 template <typename T>
-//struct is_named_argument<T, std::void_t<std::is_base_of<detail::named_argument_base,T>> > : std::true_type {};
-struct is_named_argument<T, std::void_t<decltype(sizeof(T))> > : std::is_base_of<detail::named_argument_base,T>::type {};//std::true_type {};
-
+struct is_named_argument<T, std::void_t<decltype(sizeof(T))> > : std::is_base_of<detail::named_argument_base,T>::type {};
 
 template <typename T>
 constexpr bool is_named_argument_v = is_named_argument<T>::value;
 
-//template <typename T>
-//constexpr bool is_named_argument_v = std::is_base_of_v<detail::named_argument_base,T>;
 
 
 template <typename TagType, typename /*Enable*/ = void>
@@ -206,14 +191,8 @@ struct named_argument_tag<TagType,std::void_t<std::enable_if_t< is_named_argumen
 {
     using type = typename TagType::tag_type;
 };
-// template <typename TagType, std::enable_if_t< is_named_argument_v<TagType> , bool> = true>
-// using named_argument_tag_t = typename TagType::tag_type;
-
-// template <typename TagType, std::enable_if_t< !is_named_argument_v<TagType> , bool> = true>
-// using named_argument_tag_t = TagType;
 template <typename TagType>
 using named_argument_tag_t = typename named_argument_tag<TagType>::type;
-
 
 
 
@@ -232,6 +211,8 @@ struct named_argument<TagType,void>
 template <typename NamedArgType,typename T = void>
 using named_argument_t = typename named_argument<NamedArgType,T>::type;
 
+
+
 struct ArgumentIdentifierBase {};
 
 template <typename T,typename /*Enable*/ = void>
@@ -241,10 +222,7 @@ struct ArgumentIdentifier : ArgumentIdentifierBase
     constexpr ArgumentIdentifier() = default;
     ArgumentIdentifier(const ArgumentIdentifier&) = delete;
     ArgumentIdentifier& operator=(const ArgumentIdentifier&) = delete;
-#if 0
-    template <typename V>
-    constexpr typename T::template apply_t<V> operator=(V v) const { return typename T::template apply_t<V>(v);}
-#endif
+
     template <typename V>
     constexpr typename T::template apply_t<V> operator=(V && v) const { return typename T::template apply_t<V>( std::forward<V>( v ) );}
 };
@@ -264,32 +242,27 @@ constexpr bool is_argument_identifier_v = std::is_base_of_v<ArgumentIdentifierBa
 
 
 template <typename NamedArgType,typename ValueType>
-struct DefaultParameter : named_argument_t<NamedArgType,ValueType>
+struct DefaultArgument : named_argument_t<NamedArgType,ValueType>
 {
-    DefaultParameter() = delete;
+    DefaultArgument() = delete;
     template <typename U>
-    constexpr DefaultParameter( U && v ) : named_argument_t<NamedArgType,ValueType>/*type<ValueType,Tag>*/( std::forward<U>( v ) ) {}
-    DefaultParameter( DefaultParameter const& ) = delete;
-    DefaultParameter( DefaultParameter && ) = default;//delete;
-
-#if 0
-    using super_type = named_argument_t<NamedArgType,ValueType>;
-    template <typename T2>
-    operator detail::type<T2,typename super_type::tag_type,detail::owner_object> () { std::cout << "PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP" << std::endl;}
-#endif
-
+    constexpr DefaultArgument( U && v ) : named_argument_t<NamedArgType,ValueType>( std::forward<U>( v ) ) {}
+    DefaultArgument( DefaultArgument const& ) = delete;
+    DefaultArgument( DefaultArgument && ) = default;//delete;
 };
 
 
 template <typename NamedArgType,typename ValueType>
-constexpr auto default_parameter( ValueType && val )
+constexpr auto make_default_argument( ValueType && val )
 {
-    return DefaultParameter<NamedArgType,ValueType>{ std::forward<ValueType>( val ) };
-    //return (named_argument_t<NamedArgType,ValueType>&&) DefaultParameter<NamedArgType,ValueType>{ std::forward<ValueType>( val ) };
-    // return named_argument_t<NamedArgType,ValueType>{ std::forward<ValueType>( val ) };
+    return DefaultArgument<NamedArgType,ValueType>{ std::forward<ValueType>( val ) };
 }
 
-
+template <typename ArgIdentifierType,typename ValueType, std::enable_if_t<is_argument_identifier_v<ArgIdentifierType> ,bool> = true >
+constexpr auto make_default_argument( ArgIdentifierType &&, ValueType && val )
+{
+    return make_default_argument<typename std::decay_t<ArgIdentifierType>::identifier_type>( std::forward<ValueType>( val ) );
+}
 
 //! make a new arg type with value \t
 template <typename NamedArgType,typename T>
@@ -341,7 +314,6 @@ struct to_tuple : std::tuple<T...>
     using std::tuple<T...>::tuple;
 
     using super_type = std::tuple<T...>;
-#if 1
     // conversion operator
 #if 0
     template <typename ... Ts>
@@ -350,7 +322,6 @@ struct to_tuple : std::tuple<T...>
     template <typename ... Ts>
     //operator std::tuple<Ts...> () { return std::tuple<Ts...>{ getImpl<typename Ts::tag_type,0, sizeof...(T) >( static_cast<super_type&&>( *this ) )...};}
     operator std::tuple<Ts...> () { return std::tuple<Ts...>{ getImplBIS<typename Ts::tag_type,0, sizeof...(T) >( static_cast<super_type&&>( *this ) )...}; }
-#endif
 #endif
 };
 
