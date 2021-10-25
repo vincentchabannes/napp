@@ -19,17 +19,18 @@ constexpr auto& _first_name = NA::identifier<first_name>;
 constexpr auto& _last_name = NA::identifier<last_name>;
 constexpr auto& _data = NA::identifier<data>;
 
+constexpr auto& _data2 = NA::identifier<struct data2_tag>;
+constexpr auto& _data3 = NA::identifier<struct data3_tag>;
+using data2 = typename std::decay_t<decltype(_data2)>::identifier_type;
+using data3 = typename std::decay_t<decltype(_data3)>::identifier_type;
 
 std::string test1( NA::arguments<typename first_name::template required_as_t<std::string const&>,
-                            typename last_name::template required_as_t<std::string> > && v )
+                                 typename last_name::template required_as_t<std::string> > && v )
 {
-    using tototo = NA::arguments<typename first_name::template required_as_t<std::string const&>,
-                            typename last_name::template required_as_t<std::string> >;
-    std::string bbb ;
     std::ostringstream res;
     res << v.template get<first_name>()
         << " "
-        << v.template get<last_name>();
+        << v.get(_last_name);
 
     //std::cout << "test1 : " << res.str() << std::endl;
     return res.str();
@@ -82,8 +83,9 @@ std::string test2( NA::arguments<TT...> && v )
         << " "
         << v.template get_else<data>(  "default_data_value"  )
         << " "
-        << v.template get_else<data>(  "default_data_lambda"  );
-    //<< v.template get_else_invocable<data>( [](){ return "default_data_lambda"; } );
+        //<< v.template get_else<data>(  "default_data_lambda"  );
+        << v.template get_else_invocable<data>( [](){ return "default_data_lambda"; } );
+        //<< v.template get_else_invocable<data>( [](){ return std::string("default_data_lambda"); } );
 
     //std::cout << "test2 : " << res.str() << std::endl;
     return res.str();
@@ -173,6 +175,35 @@ std::string test4( Ts && ... v )
 }
 
 
+template <typename ... TT>
+std::string test5( NA::arguments<TT...> && v )
+{
+    std::string fn = "default_first_name";
+    std::string const& ln = "default_last_name";
+    Foo foo(6,5);
+    std::ostringstream res;
+    res << v.get_else(_first_name,fn)
+        << " "
+        << v.get_else(_last_name, ln)
+        << " "
+        << v.get_else(_data, foo )
+         << " "
+        << v.get_else_invocable(_data2, [](){ return Foo(3,2); } )
+        << " "
+        << v.get_else_invocable(_data3, [&foo]() -> auto && { return foo; } );
+
+    //std::cout << "test2 : " << res.str() << std::endl;
+    return res.str();
+}
+
+template <typename ... Ts>
+std::string test5( Ts && ... v )
+{
+    return test5( NA::make_arguments( std::forward<Ts>(v)... ) );
+}
+
+
+
 TEST_CASE( "Test Function 1", "[function]" ) {
 
     REQUIRE( test1({_first_name= "James", _last_name="Bond" }) == "James Bond" );
@@ -224,4 +255,8 @@ TEST_CASE( "Test Function 4", "[function]" ) {
 
     REQUIRE( test4( NA::make_argument<first_name>( "James" ), _last_name=std::string(ln4),_data=foo4 ) == "James Bond i=15" );
     REQUIRE( test4( NA::make_argument(_first_name, "James" ), _last_name=std::string(ln4),_data=foo4 ) == "James Bond i=16" );
+}
+
+TEST_CASE( "Test Function 5", "[function]" ) {
+    test5(_first_name= "James", _last_name="Bond",_data=Foo(4,3),_data2=Foo(6,3),_data3=Foo(9,3));
 }

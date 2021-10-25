@@ -1,13 +1,11 @@
 /* -*- mode: c++; coding: utf-8; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; show-trailing-whitespace: t  -*-
  */
 
-#ifndef _NAMED_ARGUMENTS_HPP
-#define _NAMED_ARGUMENTS_HPP 1
+#ifndef _NAMED_ARGUMENTS_NA_HPP
+#define _NAMED_ARGUMENTS_NA_HPP 1
 
 #include <tuple>
 #include <any>
-//#include <vector>
-//#include <optional>
 
 
 #if 0
@@ -414,7 +412,6 @@ struct arguments
     constexpr auto & get( ArgIdentifierType && t ) { return this->get<typename std::decay_t<ArgIdentifierType>::identifier_type>(); }
 
 
-#if 1
 
     // template <typename NamedArgType,typename DefaultType>
     // using get_else_return_type = std::conditionial< has_t<NamedArgType>::value || std::is_lvalue_reference_v<DefaultType&&>,
@@ -450,31 +447,40 @@ struct arguments
             return this->get_else<typename std::decay_t<ArgIdentifierType>::identifier_type>( std::forward<DefaultType>( defaultValue ) );
         }
 
-    template <typename NamedArgType,typename DefaultType>
-    constexpr auto && /*const&*/ get_else_invocable( DefaultType && defaultValue ) const// &
+    template <typename NamedArgType,typename DefaultType, std::enable_if_t< has_t<NamedArgType>::value || std::is_lvalue_reference_v<  std::invoke_result_t< DefaultType> >, bool > = true >
+    constexpr auto && get_else_invocable( DefaultType && defaultInvocableValue ) const
         {
             if constexpr ( has_t<NamedArgType>::value )
                 return this->get<NamedArgType>();
             else
             {
                 static_assert( std::is_invocable_v<DefaultType>, "is_invocable_v should be true" );
-                auto defaultArg = NA::default_parameter<NamedArgType>( std::forward<DefaultType>( defaultValue ) );
-#if 1
-                auto defaultArg2 = NA::default_parameter<NamedArgType>( std::move(defaultArg).value()() );
-                return std::move(defaultArg2).value();
-#else
-                using the_default_arg_type = std::decay_t<decltype(defaultArg)>;
-                // TODO : here we guess lambda return valuue (not a ref)
-                auto defaultArg2 = NA::default_parameter<NamedArgType>( defaultArg.value()() );
-                using the_default_arg2_type = std::decay_t<decltype(defaultArg2)>;
-                M_tmps.push_back( std::make_shared<the_default_arg2_type>( std::move(defaultArg2) ) );
-                return std::any_cast<std::shared_ptr<the_default_arg2_type> const&>(M_tmps.back()).get()->value();
-#endif
+                return std::forward<DefaultType>( defaultInvocableValue )();
             }
         }
-#endif
-    template <typename ArgIdentifierType,  std::enable_if_t<is_argument_identifier_v<ArgIdentifierType> ,bool> = true >
-    constexpr auto && get_else_invocable( ArgIdentifierType && t ) const { return this->get_else_invocable<typename std::decay_t<ArgIdentifierType>::identifier_type>(); }
+
+    template <typename NamedArgType,typename DefaultType,
+              std::enable_if_t< !has_t<NamedArgType>::value && ( !std::is_reference_v< std::invoke_result_t< DefaultType> > || std::is_rvalue_reference_v< std::invoke_result_t< DefaultType> > ) , bool > = true >
+    constexpr auto get_else_invocable( DefaultType && defaultInvocableValue ) const
+        {
+            static_assert( std::is_invocable_v<DefaultType>, "is_invocable_v should be true" );
+            return std::forward<DefaultType>( defaultInvocableValue )();
+        }
+
+    template <typename ArgIdentifierType,typename DefaultType,
+              std::enable_if_t<is_argument_identifier_v<ArgIdentifierType> && ( has_t<typename std::decay_t<ArgIdentifierType>::identifier_type>::value || std::is_lvalue_reference_v<  std::invoke_result_t< DefaultType> > ) ,bool> = true >
+    constexpr auto && get_else_invocable( ArgIdentifierType && t, DefaultType && defaultInvocableValue ) const
+        {
+            return this->get_else_invocable<typename std::decay_t<ArgIdentifierType>::identifier_type>( std::forward<DefaultType>( defaultInvocableValue ) );
+        }
+
+    template <typename ArgIdentifierType,typename DefaultType,
+              std::enable_if_t<is_argument_identifier_v<ArgIdentifierType> && !has_t<typename std::decay_t<ArgIdentifierType>::identifier_type>::value && ( !std::is_reference_v< std::invoke_result_t< DefaultType> > || std::is_rvalue_reference_v< std::invoke_result_t< DefaultType> > ) , bool > = true >
+    constexpr auto get_else_invocable( ArgIdentifierType && t, DefaultType && defaultInvocableValue ) const
+        {
+            return this->get_else_invocable<typename std::decay_t<ArgIdentifierType>::identifier_type>( std::forward<DefaultType>( defaultInvocableValue ) );
+        }
+
 
     template <typename NamedArgType>
     constexpr auto & getArgument() &
@@ -530,9 +536,6 @@ private :
 
 private :
     std::tuple<T...> values;
-#if 0
-    mutable std::vector<std::any> M_tmps; // store optional arg given in get_optional
-#endif
 };
 
 
