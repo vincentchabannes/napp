@@ -306,7 +306,8 @@ constexpr auto make_argument(ArgIdentifierType &&, T&& t)
 }
 
 
-
+namespace detail
+{
 
 template<typename U, int Id, int MaxId, typename TupleType>
 constexpr auto&& getImplBIS(TupleType && t)
@@ -356,7 +357,7 @@ struct to_tuple : std::tuple<T...>
 template <typename ... T>
 to_tuple(T...) -> to_tuple<T...>;
 
-
+} // namespace detail
 
 template <typename Tag,size_t index, class... Ts>
 constexpr auto tuple_fold() {
@@ -385,10 +386,10 @@ struct arguments
 
 #if 0
     template <typename ... U>
-    arguments(U&& ... u) : values(to_tuple(std::forward<U>(u)...)) {}
+    arguments(U&& ... u) : values(detail::to_tuple(std::forward<U>(u)...)) {}
 #else
     template <typename ... U>
-    constexpr arguments(U&& ... u) : values(to_tuple(std::forward<U>(u)...)) {}
+    constexpr arguments(U&& ... u) : values(detail::to_tuple(std::forward<U>(u)...)) {}
 
     // TODO CHECK U IS NOT NA::arguments
     template <typename U>
@@ -488,7 +489,7 @@ struct arguments
             if constexpr ( has_t<NamedArgType>::value ) // non template type
                 return std::get< tuple_index<NamedArgType,T...>() >( this->values );
             else
-                return getImplBIS<typename NamedArgType::tag_type,0,sizeof...(T)>( this->values );
+                return detail::getImplBIS<typename NamedArgType::tag_type,0,sizeof...(T)>( this->values );
         }
     template <typename NamedArgType>
     constexpr auto const& getArgument() const &
@@ -496,7 +497,7 @@ struct arguments
         if constexpr ( false ) // non template type
             return std::get<NamedArgType>( this->values ).value;
         else
-            return getImplBIS<typename NamedArgType::tag_type,0,sizeof...(T)>( this->values );
+            return detail::getImplBIS<typename NamedArgType::tag_type,0,sizeof...(T)>( this->values );
     }
     template <typename NamedArgType>
     constexpr auto && getArgument() &&
@@ -505,14 +506,14 @@ struct arguments
             if constexpr ( false ) // non template type
                 return std::get<NamedArgType>( std::move( this->values ) );
             else
-                return getImplBIS<typename NamedArgType::tag_type,0,sizeof...(T)>( std::move( this->values ) );
+                return detail::getImplBIS<typename NamedArgType::tag_type,0,sizeof...(T)>( std::move( this->values ) );
         }
 
 
     template <typename NamedArgType, typename DefaultArgsTupleType>
     constexpr auto && getOptionalArgument( DefaultArgsTupleType && defaultArgs ) //&&
     {
-        return getImplBIS2<typename NamedArgType::tag_type,0,sizeof...(T)>( std::move( this->values ), std::forward<DefaultArgsTupleType>( defaultArgs )  );
+        return detail::getImplBIS2<typename NamedArgType::tag_type,0,sizeof...(T)>( std::move( this->values ), std::forward<DefaultArgsTupleType>( defaultArgs )  );
     }
 
 
