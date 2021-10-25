@@ -6,7 +6,7 @@
 
 #include <tuple>
 #include <any>
-
+#include <memory>
 
 #if 0
 #if 0
@@ -48,7 +48,7 @@ struct infer_type
 {
     using object_type = typename ownership_object<T>::type;
     using value_type = std::remove_reference_t<T>;
-    using type = type<value_type,tag,object_type>;
+    using type = NA::detail::type<value_type,tag,object_type>;
 };
 
 template <typename T,typename tag>
