@@ -6,7 +6,9 @@
 
 #include <tuple>
 #include <any>
-#include <vector>
+//#include <vector>
+#include <optional>
+
 
 #if 0
 #if 0
@@ -113,26 +115,26 @@ struct type<T,tag,reference_object> : named_argument_base
     template <typename T2>
     using required_as_t = typename detail::infer_type_t<T2,tag>;
 
-    type(T & t) : M_value(t) {}
+    constexpr type(T & t) : M_value(t) {}
 
     type(type &&) = default;//delete;
     type(type const&) = delete;
 
     template <typename V,std::enable_if_t< std::is_lvalue_reference_v<V&&> && std::is_base_of_v<std::decay_t<T>,std::decay_t<V>> , bool> = true>
-    type(V && t) : M_value(std::forward<V>(t)) {}
+    constexpr type(V && t) : M_value(std::forward<V>(t)) {}
 
     template <typename V,std::enable_if_t< std::is_rvalue_reference_v<V&&>   && !std::is_base_of_v<named_argument_base,std::decay_t<V> >      /*&& !std::is_same_v<std::decay_t<T>,std::decay_t<V>>*/, bool> = true>
-    type(V && t) : M_tmp(std::make_shared<T>(std::forward<V>(t))), M_value( *std::any_cast<std::shared_ptr<T>&>(M_tmp).get() ) {}
+    constexpr type(V && t) : M_tmp(std::make_shared<T>(std::forward<V>(t))), M_value( *std::any_cast<std::shared_ptr<T>&>(M_tmp).get() ) {}
 
     template <typename V,std::enable_if_t< std::is_lvalue_reference_v<V&&> && !std::is_base_of_v<std::decay_t<T>,std::decay_t<V>>, bool> = true>
-    type(V && t) : M_tmp(std::make_shared<T>(std::forward<V>(t))), M_value( *std::any_cast<std::shared_ptr<T>&>(M_tmp).get() ) {}
+    constexpr type(V && t) : M_tmp(std::make_shared<T>(std::forward<V>(t))), M_value( *std::any_cast<std::shared_ptr<T>&>(M_tmp).get() ) {}
 
 
     template <typename T2, typename tag2,typename ObjectType2> friend class type;
 
 
     template <typename T2>
-    type( type<T2,tag,owner_object> && t ) :
+    constexpr type( type<T2,tag,owner_object> && t ) :
         M_tmp(std::make_shared<T>(std::forward<type<T2,tag,owner_object>>(t).value())),
         M_value( *std::any_cast<std::shared_ptr<T>&>(M_tmp).get() ) {}
 
@@ -142,11 +144,11 @@ struct type<T,tag,reference_object> : named_argument_base
     //type( type<T2,tag,reference_object> && t ) : M_tmp( std::move( t.M_tmp ) ), M_value( std::move(std::forward<type<T2,tag,reference_object>>(t).M_value) ) {}
     //type( type<T2,tag,reference_object> && t ) : M_tmp( std::move( t.M_tmp ) ), M_value( std::move( static_cast<type<T2,tag,reference_object>&&>(t).M_value) ) {}
     //type( type<T2,tag,reference_object> && t ) : type( std::forward<type<T2,tag,reference_object>>(t).M_value ) {}
-    type( type<T2,tag,reference_object> && t ) : type( std::move(t).M_value ) {}
+    constexpr type( type<T2,tag,reference_object> && t ) : type( std::move(t).M_value ) {}
 
 
-    T & value()  { return M_value; }
-    T const& value() const  { return M_value; }
+    constexpr T & value()  { return M_value; }
+    constexpr T const& value() const  { return M_value; }
     //T & value() && { return M_value; } // NOT ALWAYS GOOD!!
 private :
     std::any M_tmp;
@@ -240,9 +242,12 @@ struct named_argument<TagType,void>
 template <typename NamedArgType,typename T = void>
 using named_argument_t = typename named_argument<NamedArgType,T>::type;
 
-template <typename T>
-struct ArgumentIdentifier
+struct ArgumentIdentifierBase {};
+
+template <typename T,typename /*Enable*/ = void>
+struct ArgumentIdentifier : ArgumentIdentifierBase
 {
+    using identifier_type = T;
     constexpr ArgumentIdentifier() = default;
     ArgumentIdentifier(const ArgumentIdentifier&) = delete;
     ArgumentIdentifier& operator=(const ArgumentIdentifier&) = delete;
@@ -255,8 +260,17 @@ struct ArgumentIdentifier
 };
 
 template <typename T>
+struct ArgumentIdentifier<T,std::void_t<std::enable_if_t< !is_named_argument_v<T> , std::true_type/*bool*/>>>  : ArgumentIdentifier<named_argument_t<T>,void>
+{
+    using ArgumentIdentifier<named_argument_t<T>,void>::operator=;
+};
+
+
+template <typename T>
 constexpr ArgumentIdentifier<T> identifier;
 
+template <typename T>
+constexpr bool is_argument_identifier_v = std::is_base_of_v<ArgumentIdentifierBase,std::decay_t<T>>;
 
 
 template <typename NamedArgType,typename ValueType>
@@ -264,7 +278,7 @@ struct DefaultParameter : named_argument_t<NamedArgType,ValueType>
 {
     DefaultParameter() = delete;
     template <typename U>
-    DefaultParameter( U && v ) : named_argument_t<NamedArgType,ValueType>/*type<ValueType,Tag>*/( std::forward<U>( v ) ) {}
+    constexpr DefaultParameter( U && v ) : named_argument_t<NamedArgType,ValueType>/*type<ValueType,Tag>*/( std::forward<U>( v ) ) {}
     DefaultParameter( DefaultParameter const& ) = delete;
     DefaultParameter( DefaultParameter && ) = default;//delete;
 
@@ -278,7 +292,7 @@ struct DefaultParameter : named_argument_t<NamedArgType,ValueType>
 
 
 template <typename NamedArgType,typename ValueType>
-auto default_parameter( ValueType && val )
+constexpr auto default_parameter( ValueType && val )
 {
     return DefaultParameter<NamedArgType,ValueType>{ std::forward<ValueType>( val ) };
     //return (named_argument_t<NamedArgType,ValueType>&&) DefaultParameter<NamedArgType,ValueType>{ std::forward<ValueType>( val ) };
@@ -386,23 +400,47 @@ struct args
     template <typename NamedArgType>
     constexpr auto & get() { return this->getArgument<NamedArgType>().value(); }
 
+    template <typename ArgIdentifierType,  std::enable_if_t<is_argument_identifier_v<ArgIdentifierType> ,bool> = true >
+    constexpr auto const& get( ArgIdentifierType && t ) const { return this->get<typename std::decay_t<ArgIdentifierType>::identifier_type>(); }
+
+    template <typename ArgIdentifierType,  std::enable_if_t<is_argument_identifier_v<ArgIdentifierType> ,bool> = true >
+    constexpr auto & get( ArgIdentifierType && t ) { return this->get<typename std::decay_t<ArgIdentifierType>::identifier_type>(); }
+
+
 #if 1
-    template <typename NamedArgType,typename DefaultType>
-    constexpr auto && /*const&*/ get_else( DefaultType && defaultValue ) const// &
+
+    // template <typename NamedArgType,typename DefaultType>
+    // using get_else_return_type = std::conditionial< has_t<NamedArgType>::value || std::is_lvalue_reference_v<DefaultType&&>,
+    //                                                 std::decay_t<>, >::type
+
+
+    template <typename NamedArgType,typename DefaultType, std::enable_if_t< has_t<NamedArgType>::value || std::is_lvalue_reference_v<DefaultType&&>, bool > = true >
+    constexpr auto && get_else( DefaultType && defaultValue ) const
         {
             if constexpr ( has_t<NamedArgType>::value )
                 return this->get<NamedArgType>();
             else
-            {
-                auto defaultArg = NA::default_parameter<NamedArgType>( std::forward<DefaultType>( defaultValue ) );
-#if 1
-                return std::move(defaultArg).value();
-#else
-                using the_default_arg_type = std::decay_t<decltype(defaultArg)>;
-                M_tmps.push_back( std::make_shared<the_default_arg_type>( std::move(defaultArg) ) );
-                return std::any_cast<std::shared_ptr<the_default_arg_type> const&>(M_tmps.back()).get()->value();
-#endif
-            }
+                return std::forward<DefaultType>( defaultValue );
+        }
+
+    template <typename NamedArgType,typename DefaultType, std::enable_if_t< !has_t<NamedArgType>::value && std::is_rvalue_reference_v<DefaultType&&>, bool > = true >
+    constexpr auto get_else( DefaultType && defaultValue ) const
+        {
+            return std::forward<DefaultType>( defaultValue );
+        }
+
+    template <typename ArgIdentifierType, typename DefaultType,
+              std::enable_if_t<is_argument_identifier_v<ArgIdentifierType> && (has_t<typename std::decay_t<ArgIdentifierType>::identifier_type>::value || std::is_lvalue_reference_v<DefaultType&&>) ,bool> = true >
+    constexpr auto && get_else( ArgIdentifierType && t, DefaultType && defaultValue ) const
+        {
+            return this->get_else<typename std::decay_t<ArgIdentifierType>::identifier_type>( std::forward<DefaultType>( defaultValue ) );
+        }
+
+    template <typename ArgIdentifierType, typename DefaultType,
+              std::enable_if_t<is_argument_identifier_v<ArgIdentifierType> && !has_t<typename std::decay_t<ArgIdentifierType>::identifier_type>::value && std::is_rvalue_reference_v<DefaultType&&> ,bool> = true >
+    constexpr auto get_else( ArgIdentifierType && t, DefaultType && defaultValue ) const
+        {
+            return this->get_else<typename std::decay_t<ArgIdentifierType>::identifier_type>( std::forward<DefaultType>( defaultValue ) );
         }
 
     template <typename NamedArgType,typename DefaultType>
@@ -428,6 +466,9 @@ struct args
             }
         }
 #endif
+    template <typename ArgIdentifierType,  std::enable_if_t<is_argument_identifier_v<ArgIdentifierType> ,bool> = true >
+    constexpr auto && get_else_invocable( ArgIdentifierType && t ) const { return this->get_else_invocable<typename std::decay_t<ArgIdentifierType>::identifier_type>(); }
+
     template <typename NamedArgType>
     constexpr auto & getArgument() &
         {
@@ -485,6 +526,8 @@ private :
 #if 0
     mutable std::vector<std::any> M_tmps; // store optional arg given in get_optional
 #endif
+    //mutable void * M_tmp = nullptr;// = std::any{};
+    //std::optional<void*> M_tmp;
 };
 
 
