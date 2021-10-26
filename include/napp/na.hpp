@@ -121,7 +121,7 @@ struct type<T,tag,reference_object> : named_argument_base
     constexpr type(V && t) : M_tmp(std::make_shared<T>(std::forward<V>(t))), M_value( *std::any_cast<std::shared_ptr<T>&>(M_tmp).get() ) {}
 
 
-    template <typename T2, typename tag2,typename ObjectType2> friend class type;
+    template <typename T2, typename tag2,typename ObjectType2> friend struct type;
 
 
     template <typename T2>
