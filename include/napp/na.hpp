@@ -82,6 +82,11 @@ struct type<T,tag,owner_object> : named_argument_base
     template <typename V, std::enable_if_t< std::is_constructible_v<T,V&&> , bool> = true>
     constexpr type(V && t) : M_value(std::forward<V>(t)) {}
 
+    // build from another owner_object
+    template <typename T2, std::enable_if_t< std::is_constructible_v<T,T2&&> , bool> = true>
+    constexpr type( type<T2,tag,owner_object> && t ) : M_value(std::move(t).value()) {}
+
+
     template <typename T2>
     constexpr type( type<T2,tag,reference_object> && t ) : M_value(std::move(t).value()) { /*std::cout << "owner_object-2-" << std::endl;*/ } // TODO here no apply copy
     //type( type<T2,tag,reference_object> && t ) : M_value(std::forward<type<T2,tag,reference_object>>(t).value()) { std::cout << "owner_object-2-" << std::endl; } // TODO here no apply copy
@@ -328,6 +333,16 @@ struct to_tuple : std::tuple<T...>
 template <typename ... T>
 to_tuple(T...) -> to_tuple<T...>;
 
+template<typename... Ts>
+constexpr decltype(auto) to_tuple_from_tuple( std::tuple<Ts...> && theTuple)
+{
+    return std::apply
+        (
+            [](Ts &&... t) -> decltype(auto) { return to_tuple( std::forward<Ts>( t ) ... ); },
+            std::forward<std::tuple<Ts...>>( theTuple )
+         );
+}
+
 
 template <typename Tag,size_t index, class... Ts>
 constexpr auto tuple_fold() {
@@ -367,6 +382,9 @@ struct arguments : arguments_base
 
     template <typename U, std::enable_if_t< !is_arguments_v<U>, bool > = true >
     constexpr arguments(U&&  u) : values(std::forward<U>(u)) {}
+
+    template <typename U, std::enable_if_t< is_arguments_v<U>, bool > = true >
+    constexpr arguments(U&& u) : values( to_tuple_from_tuple( std::forward<U>(u).values ) ) {}
 
     arguments() = delete;
     arguments( arguments const& ) = delete;
@@ -510,6 +528,9 @@ private :
 
 
 private :
+
+    template <typename ... T2> friend struct arguments;
+
     std::tuple<T...> values;
 };
 
