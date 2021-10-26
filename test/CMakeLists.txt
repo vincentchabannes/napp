@@ -11,8 +11,8 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(Catch2)
 
 
-#file(GLOB files src/unit-*.cpp)
-file(GLOB files *.cpp)
+file(GLOB files unit-*.cpp)
+#file(GLOB files *.cpp)
 
 foreach(file ${files})
   get_filename_component(file_basename ${file} NAME_WE)

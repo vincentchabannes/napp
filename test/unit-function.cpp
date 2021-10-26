@@ -147,7 +147,7 @@ std::string test4( test4_arg_type<T> && v )
         << v.get(_data);
 
     //std::cout << "test4=" << res.str() << std::endl;
-
+    
     if constexpr ( std::is_same_v<std::decay_t<decltype( v.get(_data) )>,Foo > )
          v.get(_data).setI( v.get(_data).i()+1 );
 
