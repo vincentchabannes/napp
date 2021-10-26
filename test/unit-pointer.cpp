@@ -38,7 +38,7 @@ std::string test1( Ts && ... v )
     std::string oldElt1 = *elt1;
     delete elt1;
     elt1 = new std::string( oldElt1+ "_n" );
-    std::cout << "res=" << res.str() << std::endl;
+    //std::cout << "res=" << res.str() << std::endl;
     return res.str();
 }
 
@@ -47,7 +47,7 @@ struct Foo
 {
     static int nAlloc;
     Foo() = delete;
-    Foo(int a,int b) : M_i(a*b) { ++nAlloc; std::cout << "[Foo] nAlloc=" << nAlloc << std::endl;  }
+    Foo(int a,int b) : M_i(a*b) { ++nAlloc; /*std::cout << "[Foo] nAlloc=" << nAlloc << std::endl;*/  }
     ~Foo() { --nAlloc; }
     Foo( Foo const& ) = delete;
     Foo( Foo && ) = delete;
@@ -78,6 +78,8 @@ std::string test2Impl( test2_arg_type<Foo> && args )
 
     if ( !elt1 )
         elt1 = std::make_shared<Foo>(1,1);
+    if ( !elt3 )
+        elt3 = std::make_shared<Foo>(1,3);
 
     std::ostringstream res;
     res << elt1->i() << " " << elt2->i() << " " << elt3->i();
@@ -91,7 +93,9 @@ std::string test2Impl( test2_arg_type<Foo> && args )
 template <typename ... Ts>
 std::string test2( Ts && ... v )
 {
-    auto args = NA::make_arguments( std::forward<Ts>(v)... )/*.add_default_argument()*/;
+    auto args = NA::make_arguments( std::forward<Ts>(v)... ).add_default_arguments( NA::make_default_argument<elt1>( std::shared_ptr<Foo>{} ),
+                                                                                    NA::make_default_argument<elt2>( std::make_shared<Foo>(3,2) ),
+                                                                                    NA::make_default_argument<elt3>( std::make_shared<Foo>(8,3) ) );
     return test2Impl( std::move( args ) );
 }
 
@@ -112,5 +116,15 @@ TEST_CASE( "Test Smart Pointer", "[pointer]" ) {
     auto foo2 = std::make_shared<Foo>(6,9);
     REQUIRE( test2(_elt1=new Foo(3,4),_elt3=std::make_shared<Foo>(4,5),_elt2=foo2) == "12 54 20" );
     REQUIRE( foo2->i() == 56 );
-    
+
+    REQUIRE( test2(_elt3=std::make_shared<Foo>(4,5),_elt2=foo2) == "1 56 20" );
+    REQUIRE( foo2->i() == 58 );
+    REQUIRE( test2(_elt3=std::make_shared<Foo>(4,5)) == "1 6 20" );
+    REQUIRE( test2() == "1 6 24" );
+
+    foo2.reset();
+    REQUIRE( test2(_elt3=foo2) == "1 6 3" );
+    REQUIRE( foo2->i() == 6 );
+
+    REQUIRE( Foo::nAlloc == 1 );
 }

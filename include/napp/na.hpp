@@ -312,6 +312,36 @@ constexpr auto&& getImplBIS2(TupleType && t, DefaultArgsTupleType && defaultArgs
         return getImplBIS2<U,Id+1,MaxId,TupleType>( std::forward<TupleType>(t ), std::forward<DefaultArgsTupleType>( defaultArgs ) );
 }
 
+#if 0
+template<typename U, int Id, int MaxId, typename DefaultArgsTupleType, typename RetTupleType>
+constexpr auto /*decltype(auto)*/ newtuple( DefaultArgsTupleType && defaultArgs, RetTupleType && ret )
+{
+    if constexpr ( Id>= MaxId )
+                     return std::forward<RetTupleType>( ret );
+    else if constexpr ( U::template has_t< typename std::tuple_element_t<Id, std::decay_t<DefaultArgsTupleType> > >::value )
+                          return newtuple<U,Id+1,MaxId>( std::forward<DefaultArgsTupleType>( defaultArgs ), std::forward<RetTupleType>( ret ) );
+    else
+        return newtuple<U,Id+1,MaxId>( std::forward<DefaultArgsTupleType>( defaultArgs ), std::tuple_cat( std::forward<RetTupleType>( ret ),
+                                                                                                          std::/*make_tuple*/forward_as_tuple( std::get<Id>( std::forward<DefaultArgsTupleType>( defaultArgs ) ) )
+                                       //std::make_tuple/*forward_as_tuple*/( std::get<Id>( defaultArgs  ) )
+                                           //std::make_tuple/*forward_as_tuple*/( std::move(std::get<Id>( defaultArgs ) ) )
+                                       )
+                                       );
+}
+//auto newtuple = detail::subtuple<>( defaultArg... );
+#else
+template<typename U, int Id, int MaxId, typename DefaultArgsTupleType, typename ... RetTupleType>
+constexpr decltype(auto) to_tuple_args_not_present( DefaultArgsTupleType && defaultArgs, RetTupleType && ... ret )
+{
+    if constexpr ( Id>= MaxId )
+        return std::make_tuple( std::forward<RetTupleType>( ret )... );
+    else if constexpr ( U::template has_t< typename std::tuple_element_t<Id, std::decay_t<DefaultArgsTupleType> > >::value )
+        return to_tuple_args_not_present<U,Id+1,MaxId>( std::forward<DefaultArgsTupleType>( defaultArgs ), std::forward<RetTupleType>( ret )... );
+    else
+        return to_tuple_args_not_present<U,Id+1,MaxId>( std::forward<DefaultArgsTupleType>( defaultArgs ),
+                                                        std::get<Id>( std::forward<DefaultArgsTupleType>( defaultArgs ) ), std::forward<RetTupleType>( ret )... );
+}
+#endif
 
 template <typename ...T>
 struct to_tuple : std::tuple<T...>
@@ -326,7 +356,7 @@ struct to_tuple : std::tuple<T...>
 #else
     template <typename ... Ts>
     //operator std::tuple<Ts...> () { return std::tuple<Ts...>{ getImpl<typename Ts::tag_type,0, sizeof...(T) >( static_cast<super_type&&>( *this ) )...};}
-    operator std::tuple<Ts...> () { return std::tuple<Ts...>{ getImplBIS<typename Ts::tag_type,0, sizeof...(T) >( static_cast<super_type&&>( *this ) )...}; }
+    operator std::tuple<Ts...> () { return std::tuple<Ts...>{ getImplBIS<typename std::decay_t<Ts>::tag_type,0, sizeof...(T) >( static_cast<super_type&&>( *this ) )...}; }
 #endif
 };
 
@@ -365,8 +395,26 @@ constexpr auto tuple_index()
 
 struct arguments_base {};
 
+template <typename ... T>
+struct arguments;
+
 template <typename T>
 constexpr bool is_arguments_v = std::is_base_of_v<arguments_base,std::decay_t<T>>;
+
+template <typename ... T>
+constexpr NA::arguments<T...>  make_arguments(T&& ... t);
+
+template <typename ... Ts>
+constexpr NA::arguments<Ts...>  make_arguments_from_tuple( std::tuple<Ts...> &&  t )
+{
+    return std::apply
+        (
+            [](Ts &&... t) -> decltype(auto) { return make_arguments( std::forward<Ts>( t ) ... ); },
+            //[](auto &&... t) -> decltype(auto) { return make_arguments( std::forward<decltype(auto)>( t ) ... ); },
+            std::forward<std::tuple<Ts...>>( t )
+         );
+
+}
 
 
 template <typename ... T>
@@ -375,9 +423,9 @@ struct arguments : arguments_base
     // using tuple_type = std::tuple<T...>;
  
     template <typename Tag>
-    using has_t = std::disjunction<std::is_same<typename std::decay_t<T>::tag_type, typename Tag::tag_type>...>;
+    using has_t = std::disjunction<std::is_same<typename std::decay_t<T>::tag_type, typename std::decay_t<Tag>::tag_type>...>;
 
-    template <typename ... U>
+    template <typename ... U, typename  = typename std::enable_if_t< sizeof...(U) >= 1 > >
     constexpr arguments(U&& ... u) : values(detail::to_tuple(std::forward<U>(u)...)) {}
 
     template <typename U, std::enable_if_t< !is_arguments_v<U>, bool > = true >
@@ -386,7 +434,11 @@ struct arguments : arguments_base
     template <typename U, std::enable_if_t< is_arguments_v<U>, bool > = true >
     constexpr arguments(U&& u) : values( to_tuple_from_tuple( std::forward<U>(u).values ) ) {}
 
-    arguments() = delete;
+    //arguments() = delete;
+    template< typename T2 = std::tuple<T...>,
+              typename  = typename std::enable_if_t< std::tuple_size<T2>::value == 0 > >
+    constexpr arguments() {}
+
     arguments( arguments const& ) = delete;
     //arguments( arguments && ) = delete;
 
@@ -409,6 +461,7 @@ struct arguments : arguments_base
     // using get_else_return_type = std::conditionial< has_t<NamedArgType>::value || std::is_lvalue_reference_v<DefaultType&&>,
     //                                                 std::decay_t<>, >::type
 
+    // TODO : try with return decltype(auto) instead of auto
 
     template <typename NamedArgType,typename DefaultType, std::enable_if_t< has_t<NamedArgType>::value || std::is_lvalue_reference_v<DefaultType&&>, bool > = true >
     constexpr auto && get_else( DefaultType && defaultValue ) const
@@ -509,7 +562,18 @@ struct arguments : arguments_base
     }
 
 
+    template <typename ... DefaultArgType >
+    constexpr auto add_default_arguments( DefaultArgType && ... defaultArg ) &&
+        {
+            //static constexpr bool __matches[sizeof...(_Args)] = {is_same<_T1, _Args>::value...};
+            using self_type = arguments<T...>;
+            auto tupleDefaultArgsUsed = detail::to_tuple_args_not_present<self_type,0,sizeof...(DefaultArgType)>( std::make_tuple( std::forward<DefaultArgType>(defaultArg)... ) );
 
+            if constexpr ( std::tuple_size<std::decay_t<decltype(tupleDefaultArgsUsed)>>::value == 0 )
+                return std::move( *this );
+            else
+                return make_arguments_from_tuple( std::tuple_cat( std::move( this->values), std::move( tupleDefaultArgsUsed ) ) );
+        }
 
     template <typename GivenArgsType, typename ... DefaultArgType >
     static constexpr auto create( GivenArgsType && givenArgs, DefaultArgType && ... defaultArg )
