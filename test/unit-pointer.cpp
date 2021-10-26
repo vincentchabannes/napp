@@ -93,9 +93,9 @@ std::string test2Impl( test2_arg_type<Foo> && args )
 template <typename ... Ts>
 std::string test2( Ts && ... v )
 {
-    auto args = NA::make_arguments( std::forward<Ts>(v)... ).add_default_arguments( NA::make_default_argument<elt1>( std::shared_ptr<Foo>{} ),
-                                                                                    NA::make_default_argument<elt2>( std::make_shared<Foo>(3,2) ),
-                                                                                    NA::make_default_argument<elt3>( std::make_shared<Foo>(8,3) ) );
+    auto args = NA::make_arguments( std::forward<Ts>(v)... ).add_default_arguments( NA::make_default_argument( _elt1, std::shared_ptr<Foo>{} ),
+                                                                                    NA::make_default_argument( _elt2, std::make_shared<Foo>(3,2) ),
+                                                                                    NA::make_default_argument( _elt3, std::make_shared<Foo>(8,3) ) );
     return test2Impl( std::move( args ) );
 }
 
