@@ -199,6 +199,26 @@ std::string test5( Ts && ... v )
 
 
 
+std::string test6( std::string const& fn, std::string const& ln )
+{
+    std::ostringstream res;
+    res << "[v1] " << fn << " "<< ln;
+    return res.str();
+}
+
+template <typename ... Ts,typename  = typename std::enable_if_t< sizeof...(Ts) != 2 || ( NA::is_named_argument_v<Ts> && ...) > >
+std::string test6( Ts && ... v )
+{
+    auto args = NA::make_arguments( std::forward<Ts>(v)... );
+    auto && fn = args.get(_first_name);
+    auto && ln = args.get(_last_name);
+    std::ostringstream res;
+    res << "[v2] " << fn << " "<< ln;
+    return res.str();
+}
+
+
+
 TEST_CASE( "Test Function 1", "[function]" ) {
 
     REQUIRE( test1({_first_name= "James", _last_name="Bond" }) == "James Bond" );
@@ -254,4 +274,10 @@ TEST_CASE( "Test Function 4", "[function]" ) {
 
 TEST_CASE( "Test Function 5", "[function]" ) {
     test5(_first_name= "James", _last_name="Bond",_data=Foo(4,3),_data2=Foo(6,3),_data3=Foo(9,3));
+}
+
+TEST_CASE( "Test Function 6", "[function]" ) {
+    REQUIRE( test6(_first_name= "James", _last_name="Bond") == "[v2] James Bond" );
+    REQUIRE( test6("James","Bond") == "[v1] James Bond" );
+    REQUIRE( test6(std::string("James"),std::string("Bond")) == "[v1] James Bond" );
 }
