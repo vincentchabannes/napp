@@ -243,6 +243,9 @@ template <typename T>
 constexpr ArgumentIdentifier<T> identifier;
 
 template <typename T>
+using identifier_t = ArgumentIdentifier<T>;
+
+template <typename T>
 constexpr bool is_argument_identifier_v = std::is_base_of_v<ArgumentIdentifierBase,std::decay_t<T>>;
 
 
