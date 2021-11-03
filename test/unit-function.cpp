@@ -218,6 +218,30 @@ std::string test6( Ts && ... v )
 }
 
 
+struct FooString
+{
+    FooString( std::string const& s) : M_s(new std::string(s)) {}
+    ~FooString() { delete M_s; }
+    std::string const& s() const { return *M_s; }
+private:
+    std::string * M_s;
+};
+FooString
+operator+(FooString const& t1, FooString const& t2) { return FooString(t1.s()+t2.s()); }
+
+template <typename ... Ts>
+std::string test7( Ts && ... v )
+{
+    auto args = NA::make_arguments( std::forward<Ts>(v)... );
+    // check default arg which return ref from temporary object
+    auto && fn = args.get_else_invocable(_first_name, []() { return (FooString("fn0")+FooString("fn1")).s(); } );
+    auto && ln = args.get_else(_last_name, std::string((FooString("ln0")+FooString("ln1")).s()));
+    std::ostringstream res;
+    res << fn << " "<< ln;
+    return res.str();
+}
+
+
 
 TEST_CASE( "Test Function 1", "[function]" ) {
 
@@ -280,4 +304,12 @@ TEST_CASE( "Test Function 6", "[function]" ) {
     REQUIRE( test6(_first_name= "James", _last_name="Bond") == "[v2] James Bond" );
     REQUIRE( test6("James","Bond") == "[v1] James Bond" );
     REQUIRE( test6(std::string("James"),std::string("Bond")) == "[v1] James Bond" );
+}
+
+
+TEST_CASE( "Test Function 7", "[function]" ) {
+    REQUIRE( test7(_first_name="James",_last_name="Bond") == "James Bond" );
+    REQUIRE( test7(_first_name="James") == "James ln0ln1" );
+    REQUIRE( test7(_last_name="Bond") == "fn0fn1 Bond" );
+    REQUIRE( test7() == "fn0fn1 ln0ln1" );
 }
