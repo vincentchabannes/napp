@@ -249,9 +249,11 @@ std::string test8( Ts && ... v )
     auto args = NA::make_arguments( std::forward<Ts>(v)... );
     auto && data = args.template get<std::is_integral>(_data);
     auto && data2 = args.template get_else<std::is_floating_point>(_data2,2.3);
+    //auto && data3 = args.template get_else_invocable<std::is_arithmetic>(_data3,[](){return 5.7;});
+    auto && data3 = args.template get_else_invocable<std::is_arithmetic>(_data3,[](){return 5.7;});
     auto && fn = args.template get_else<NA::constraint::is_convertible<std::string>::apply>(_first_name,"fn");
     std::ostringstream res;
-    res << data << " "<< std::lround(data2) << " " << fn;
+    res << data << " "<< std::lround(data2) << " " << std::lround(data3) << " " << fn;
     return res.str();
 }
 
@@ -330,7 +332,8 @@ TEST_CASE( "Test Function 7", "[function]" ) {
 }
 
 TEST_CASE( "Test Function 8", "[function]" ) {
-     REQUIRE( test8(_data=12) == "12 2 fn" );
-     REQUIRE( test8(_data=8,_data2=9.3) == "8 9 fn" );
-     REQUIRE( test8(_first_name="James",_data=8,_data2=9.3) == "8 9 James" );
+     REQUIRE( test8(_data=12) == "12 2 6 fn" );
+     REQUIRE( test8(_data=8,_data2=9.3) == "8 9 6 fn" );
+     REQUIRE( test8(_first_name="James",_data=8,_data2=9.3) == "8 9 6 James" );
+     REQUIRE( test8(_first_name="James",_data3=4,_data=8,_data2=9.3) == "8 9 4 James" );
 }

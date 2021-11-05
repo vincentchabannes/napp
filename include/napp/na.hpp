@@ -555,6 +555,15 @@ struct arguments : arguments_base
         {
             return this->get_else_invocable<typename std::decay_t<ArgIdentifierType>::identifier_type>( std::forward<DefaultType>( defaultInvocableValue ) );
         }
+    // with constraint
+    template <template <typename RT> class ReturnConstraintType, typename ArgIdentifierType,typename DefaultType>
+    constexpr decltype(auto) get_else_invocable( ArgIdentifierType && t, DefaultType && defaultInvocableValue ) const
+        {
+            decltype(auto) res = this->get_else_invocable<typename std::decay_t<ArgIdentifierType>::identifier_type>( std::forward<DefaultType>( defaultInvocableValue ) );
+            static_assert( ReturnConstraintType< std::decay_t<decltype(res)> >::value,
+                           "argument type not statisfy the constraint asked" );
+            return res;
+        }
 
 
     template <typename NamedArgType>
