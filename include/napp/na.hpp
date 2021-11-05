@@ -458,6 +458,22 @@ struct arguments : arguments_base
     template <typename ArgIdentifierType,  std::enable_if_t<is_argument_identifier_v<ArgIdentifierType> ,bool> = true >
     constexpr auto & get( ArgIdentifierType && t ) { return this->get<typename std::decay_t<ArgIdentifierType>::identifier_type>(); }
 
+    // check constraint of return type
+    template <template <typename RT> class ReturnConstraintType, typename ArgIdentifierType,  std::enable_if_t<is_argument_identifier_v<ArgIdentifierType> ,bool> = true >
+    constexpr auto const& get( ArgIdentifierType && t ) const
+        {
+            static_assert( ReturnConstraintType< std::decay_t<decltype(this->get<typename std::decay_t<ArgIdentifierType>::identifier_type>())> >::value,
+                           "argument type not statisfy the constraint asked" );
+            return this->get<typename std::decay_t<ArgIdentifierType>::identifier_type>();
+        }
+
+    template <template <typename RT> class ReturnConstraintType, typename ArgIdentifierType,  std::enable_if_t<is_argument_identifier_v<ArgIdentifierType> ,bool> = true >
+    constexpr auto & get( ArgIdentifierType && t )
+        {
+            static_assert( ReturnConstraintType< std::decay_t<decltype(this->get<typename std::decay_t<ArgIdentifierType>::identifier_type>())> >::value,
+                           "argument type not statisfy the constraint asked" );
+            return this->get<typename std::decay_t<ArgIdentifierType>::identifier_type>();
+        }
 
 
     // template <typename NamedArgType,typename DefaultType>
@@ -494,6 +510,17 @@ struct arguments : arguments_base
         {
             return this->get_else<typename std::decay_t<ArgIdentifierType>::identifier_type>( std::forward<DefaultType>( defaultValue ) );
         }
+
+    // constraint
+    template <template <typename RT> class ReturnConstraintType, typename ArgIdentifierType, typename DefaultType >
+    constexpr decltype(auto) get_else( ArgIdentifierType && t, DefaultType && defaultValue ) const
+        {
+            decltype(auto) res = this->get_else<typename std::decay_t<ArgIdentifierType>::identifier_type>( std::forward<DefaultType>( defaultValue ) );
+            static_assert( ReturnConstraintType< std::decay_t<decltype(res)> >::value,
+                           "argument type not statisfy the constraint asked" );
+            return res;
+        }
+
 
     template <typename NamedArgType,typename DefaultType, std::enable_if_t< has_t<NamedArgType>::value || std::is_lvalue_reference_v<  std::invoke_result_t< DefaultType> >, bool > = true >
     constexpr auto && get_else_invocable( DefaultType && defaultInvocableValue ) const
@@ -620,6 +647,24 @@ constexpr U  make_arguments(T&& ... t)
 
 template <typename Tag,typename U>
 constexpr bool has_v = U::template has_t<Tag>::value;
+
+
+
+
+
+namespace constraint
+{
+
+template <typename To>
+struct is_convertible
+{
+    template <typename From>
+    struct apply : std::is_convertible<From,To> {};
+};
+
+} // constraint
+
+
 
 
 
