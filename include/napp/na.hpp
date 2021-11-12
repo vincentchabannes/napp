@@ -249,16 +249,53 @@ template <typename T>
 constexpr bool is_argument_identifier_v = std::is_base_of_v<ArgumentIdentifierBase,std::decay_t<T>>;
 
 
+//! make a new arg type with value \t
+template <typename NamedArgType,typename T>
+constexpr auto/*type<T,Tag>*/ make_argument(T&& t)
+{
+    return detail::infer_type_t<T,named_argument_tag_t<NamedArgType>>(std::forward<T>(t));
+}
+
+//! make a new arg type with value \t
+template <typename ArgIdentifierType, typename T,  std::enable_if_t<is_argument_identifier_v<ArgIdentifierType> ,bool> = true >
+constexpr auto make_argument(ArgIdentifierType &&, T&& t)
+{
+    return make_argument<typename std::decay_t<ArgIdentifierType>::identifier_type>( std::forward<T>(t) );
+}
+
+
+
 template <typename NamedArgType,typename ValueType>
 struct DefaultArgument : named_argument_t<NamedArgType,ValueType>
 {
+    using super_type = named_argument_t<NamedArgType,ValueType>;
     DefaultArgument() = delete;
     template <typename U>
     constexpr DefaultArgument( U && v ) : named_argument_t<NamedArgType,ValueType>( std::forward<U>( v ) ) {}
     DefaultArgument( DefaultArgument const& ) = delete;
     DefaultArgument( DefaultArgument && ) = default;//delete;
+
+    constexpr super_type const& to_named_argument() const & { return *this; }
+    constexpr super_type & to_named_argument() & { return *this; }
+    constexpr super_type && to_named_argument() && { return std::move(*this); }
 };
 
+
+template <typename NamedArgType,typename ValueType>
+struct DefaultArgumentInvocable : named_argument_t<NamedArgType,ValueType>
+{
+    static_assert( std::is_invocable_v<ValueType>, "is_invocable_v should be true" );
+
+    DefaultArgumentInvocable() = delete;
+    template <typename U>
+    constexpr DefaultArgumentInvocable( U && v ) : named_argument_t<NamedArgType,ValueType>( std::forward<U>( v ) ) {}
+    DefaultArgumentInvocable( DefaultArgumentInvocable const& ) = delete;
+    DefaultArgumentInvocable( DefaultArgumentInvocable && ) = default;//delete;
+
+    constexpr auto to_named_argument() const & { return make_argument<NamedArgType>( this->value()() ); }
+    constexpr auto to_named_argument() & { return make_argument<NamedArgType>( this->value()() ); }
+    constexpr auto to_named_argument() && { return make_argument<NamedArgType>( std::move(*this).value()() ); }
+};
 
 template <typename NamedArgType,typename ValueType>
 constexpr auto make_default_argument( ValueType && val )
@@ -272,18 +309,17 @@ constexpr auto make_default_argument( ArgIdentifierType &&, ValueType && val )
     return make_default_argument<typename std::decay_t<ArgIdentifierType>::identifier_type>( std::forward<ValueType>( val ) );
 }
 
-//! make a new arg type with value \t
-template <typename NamedArgType,typename T>
-constexpr auto/*type<T,Tag>*/ make_argument(T&& t)
+
+template <typename NamedArgType,typename ValueType>
+constexpr auto make_default_argument_invocable( ValueType && val )
 {
-    return detail::infer_type_t<T,named_argument_tag_t<NamedArgType>>(std::forward<T>(t));
+    return DefaultArgumentInvocable<NamedArgType,ValueType>{ std::forward<ValueType>( val ) };
 }
 
-//! make a new arg type with value \t
-template <typename ArgIdentifierType, typename T,  std::enable_if_t<is_argument_identifier_v<ArgIdentifierType> ,bool> = true >
-constexpr auto make_argument(ArgIdentifierType &&, T&& t)
+template <typename ArgIdentifierType,typename ValueType, std::enable_if_t<is_argument_identifier_v<ArgIdentifierType> ,bool> = true >
+constexpr auto make_default_argument_invocable( ArgIdentifierType &&, ValueType && val )
 {
-    return make_argument<typename std::decay_t<ArgIdentifierType>::identifier_type>( std::forward<T>(t) );
+    return make_default_argument_invocable<typename std::decay_t<ArgIdentifierType>::identifier_type>( std::forward<ValueType>( val ) );
 }
 
 
@@ -301,6 +337,7 @@ constexpr auto&& getImplBIS(TupleType && t)
 }
 
 
+#if 0
 template<typename U, int Id, int MaxId, typename TupleType,typename DefaultArgsTupleType>
 constexpr auto&& getImplBIS2(TupleType && t, DefaultArgsTupleType && defaultArgs)
 {
@@ -314,6 +351,8 @@ constexpr auto&& getImplBIS2(TupleType && t, DefaultArgsTupleType && defaultArgs
     else
         return getImplBIS2<U,Id+1,MaxId,TupleType>( std::forward<TupleType>(t ), std::forward<DefaultArgsTupleType>( defaultArgs ) );
 }
+
+#endif
 
 #if 0
 template<typename U, int Id, int MaxId, typename DefaultArgsTupleType, typename RetTupleType>
@@ -342,7 +381,7 @@ constexpr decltype(auto) to_tuple_args_not_present( DefaultArgsTupleType && defa
         return to_tuple_args_not_present<U,Id+1,MaxId>( std::forward<DefaultArgsTupleType>( defaultArgs ), std::forward<RetTupleType>( ret )... );
     else
         return to_tuple_args_not_present<U,Id+1,MaxId>( std::forward<DefaultArgsTupleType>( defaultArgs ),
-                                                        std::get<Id>( std::forward<DefaultArgsTupleType>( defaultArgs ) ), std::forward<RetTupleType>( ret )... );
+                                                        std::get<Id>( std::forward<DefaultArgsTupleType>( defaultArgs ) ).to_named_argument(), std::forward<RetTupleType>( ret )... );
 }
 #endif
 
@@ -600,15 +639,16 @@ struct arguments : arguments_base
         }
 
 
+#if 0
     template <typename NamedArgType, typename DefaultArgsTupleType>
     constexpr auto && getOptionalArgument( DefaultArgsTupleType && defaultArgs ) //&&
     {
         return detail::getImplBIS2<typename NamedArgType::tag_type,0,sizeof...(T)>( std::move( this->values ), std::forward<DefaultArgsTupleType>( defaultArgs )  );
     }
-
+#endif
 
     template <typename ... DefaultArgType >
-    constexpr auto add_default_arguments( DefaultArgType && ... defaultArg ) &&
+    constexpr decltype(auto) add_default_arguments( DefaultArgType && ... defaultArg ) &&
         {
             //static constexpr bool __matches[sizeof...(_Args)] = {is_same<_T1, _Args>::value...};
             using self_type = arguments<T...>;
@@ -623,18 +663,23 @@ struct arguments : arguments_base
     template <typename GivenArgsType, typename ... DefaultArgType >
     static constexpr auto create( GivenArgsType && givenArgs, DefaultArgType && ... defaultArg )
         {
-            return createImpl( std::forward<GivenArgsType>( givenArgs ), std::make_tuple( std::forward<DefaultArgType>( defaultArg ) ... ) );
+            //return createImpl( std::forward<GivenArgsType>( givenArgs ), std::make_tuple( std::forward<DefaultArgType>( defaultArg ) ... ) );
+
+            return arguments<T...>{ std::forward<GivenArgsType>( givenArgs).add_default_arguments( std::forward<DefaultArgType>( defaultArg )  ... ) };
         }
 
-
+#if 0
 private :
     template <typename TheType, typename DefaultArgsTupleType >
     static constexpr auto createImpl( TheType && a, DefaultArgsTupleType &&  defaultParams )
         {
             //return args<T...>{ std::forward<TheType>( a ).template getArgument<T>() ... };
+#if 1
             return arguments<T...>{ std::forward<TheType>( a ).template getOptionalArgument<T>( std::forward<DefaultArgsTupleType>( defaultParams ) ) ... };
+#endif
+            //return arguments<T...>{ std::forward<TheType>( a ).add_default_arguments( std::forward<DefaultArgsTupleType>( defaultParams )  ... ) };
         }
-
+#endif
 
 private :
 

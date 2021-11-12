@@ -182,7 +182,9 @@ std::string test4( Ts && ... v )
     std::string default_ln = "default_ln";
     return test4<thedata_arg_type>( test4_arg_type<thedata_arg_type>::create( std::move(args),
                                                                               NA::make_default_argument<first_name>( "default_fn" ),
-                                                                              NA::make_default_argument(_last_name, default_ln)
+                                                                              //NA::make_default_argument(_last_name, default_ln)
+                                                                              //NA::make_default_argument_invocable<first_name>( [](){ return "default_fn"; } ),
+                                                                              NA::make_default_argument_invocable(_last_name, [&default_ln]() -> decltype(auto){ return default_ln; })
                                                                               ) );
 }
 
