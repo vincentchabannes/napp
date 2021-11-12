@@ -566,6 +566,12 @@ struct arguments : arguments_base
         }
 
 
+    //! return all argument
+    constexpr auto get_all() const { return std::forward_as_tuple( this->get<std::decay_t<T>>() ... ); }
+    //! return all argument
+    constexpr auto get_all() { return std::forward_as_tuple( this->get<std::decay_t<T>>() ... ); }
+
+
     template <typename NamedArgType>
     constexpr auto & getArgument() &
         {

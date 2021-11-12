@@ -2,12 +2,13 @@
 #include <napp/na.hpp>
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_template_test_macros.hpp>
 
 #include <iostream>
 #include <sstream>
 #include <string>
 #include <cmath>
-
+//#include <type_traits>
 
 using first_name = NA::named_argument_t<struct first_name_tag>;
 using last_name = NA::named_argument_t<struct last_name_tag>;
@@ -111,18 +112,33 @@ std::string test2b( Ts && ... v )
 using test3_arg_type = NA::arguments<typename first_name::template required_as_t<std::string &>,
                                      typename last_name::template required_as_t<std::string &>,
                                      typename data::template required_as_t<Foo&> >;
-void test3( test3_arg_type && v )
+
+template <int Vers>
+void test3( test3_arg_type && v );
+template <>
+void test3<0>( test3_arg_type && v )
 {
+    std::cout << "version 1" << std::endl;
     v.template get<first_name>() = "James";
     v.template get<last_name>() = "Bond";
     v.template get<data>().setI( 34 );
 }
+template <>
+void test3<1>( test3_arg_type && v )
+{
+    std::cout << "version 2" << std::endl;
+    auto && [fn,ln,d] = v.get_all();
+    fn = "James";
+    ln = "Bond";
+    d.setI( 34 );
+}
 
-template <typename ... Ts>
+
+template <int Vers,typename ... Ts>
 void test3( Ts && ... v )
 {
     //test3( test3_arg_type{ std::forward<Ts>(v)... } );
-    test3( NA::make_arguments<test3_arg_type>( std::forward<Ts>(v)... ) );
+    test3<Vers>( NA::make_arguments<test3_arg_type>( std::forward<Ts>(v)... ) );
 
 }
 
@@ -283,16 +299,22 @@ TEST_CASE( "Test Function 2", "[function]" ) {
     REQUIRE( test2b(_first_name= "James", _last_name="Bond",_data=baz ) == "James Bond i=-21 i=-21" );
 }
 
-TEST_CASE( "Test Function 3", "[function]" ) {
+
+
+TEMPLATE_TEST_CASE("Test Function 3", "[function]",
+                   (std::integral_constant<int,0>),
+                   (std::integral_constant<int,1>) ) {
+    //TEST_CASE( "Test Function 3", "[function]" ) {
+    static const int Ver = TestType::value;
     std::string fn3,ln3;Foo foo3(0,0);
-    test3( _data=foo3,_last_name=ln3,_first_name=fn3 );
+    test3<Ver>( _data=foo3,_last_name=ln3,_first_name=fn3 );
     std::ostringstream res3;
     res3 << fn3 << " " << ln3 << " " << foo3;
     REQUIRE( res3.str() == "James Bond i=34" );
 
     fn3.clear();ln3.clear();
     Baz baz3(0,0);
-    test3( _data=baz3,_last_name=ln3,_first_name=fn3 );
+    test3<Ver>( _data=baz3,_last_name=ln3,_first_name=fn3 );
     std::ostringstream res3b;
     res3b  << fn3 << " " << ln3 << " i=" << baz3.i();
     REQUIRE( res3b.str() == "James Bond i=34" );
