@@ -463,7 +463,7 @@ template <typename ... T>
 struct arguments : arguments_base
 {
     // using tuple_type = std::tuple<T...>;
- 
+
     template <typename Tag>
     using has_t = std::disjunction<std::is_same<typename std::decay_t<T>::tag_type, typename std::decay_t<Tag>::tag_type>...>;
 
@@ -515,14 +515,12 @@ struct arguments : arguments_base
         }
 
 
-    // template <typename NamedArgType,typename DefaultType>
-    // using get_else_return_type = std::conditionial< has_t<NamedArgType>::value || std::is_lvalue_reference_v<DefaultType&&>,
-    //                                                 std::decay_t<>, >::type
-
-    // TODO : try with return decltype(auto) instead of auto
-
+    //---------------------------------
+    // get_else
+    //---------------------------------
+    // const
     template <typename NamedArgType,typename DefaultType, std::enable_if_t< has_t<NamedArgType>::value || std::is_lvalue_reference_v<DefaultType&&>, bool > = true >
-    constexpr auto && get_else( DefaultType && defaultValue ) const
+    constexpr decltype(auto) /*auto &&*/ get_else( DefaultType && defaultValue ) const
         {
             if constexpr ( has_t<NamedArgType>::value )
                 return this->get<NamedArgType>();
@@ -533,23 +531,29 @@ struct arguments : arguments_base
     template <typename NamedArgType,typename DefaultType, std::enable_if_t< !has_t<NamedArgType>::value && std::is_rvalue_reference_v<DefaultType&&>, bool > = true >
     constexpr auto get_else( DefaultType && defaultValue ) const
         {
+            //return defaultValue;
             return std::forward<DefaultType>( defaultValue );
         }
 
-    template <typename ArgIdentifierType, typename DefaultType,
-              std::enable_if_t<is_argument_identifier_v<ArgIdentifierType> && (has_t<typename std::decay_t<ArgIdentifierType>::identifier_type>::value || std::is_lvalue_reference_v<DefaultType&&>) ,bool> = true >
-    constexpr auto && get_else( ArgIdentifierType && t, DefaultType && defaultValue ) const
+    template <typename ArgIdentifierType, typename DefaultType>
+    constexpr decltype(auto) get_else( ArgIdentifierType && t, DefaultType && defaultValue ) const
         {
             return this->get_else<typename std::decay_t<ArgIdentifierType>::identifier_type>( std::forward<DefaultType>( defaultValue ) );
         }
-
-    template <typename ArgIdentifierType, typename DefaultType,
-              std::enable_if_t<is_argument_identifier_v<ArgIdentifierType> && !has_t<typename std::decay_t<ArgIdentifierType>::identifier_type>::value && std::is_rvalue_reference_v<DefaultType&&> ,bool> = true >
-    constexpr auto get_else( ArgIdentifierType && t, DefaultType && defaultValue ) const
+    // non const
+    template <typename NamedArgType,typename DefaultType, std::enable_if_t< has_t<NamedArgType>::value || std::is_lvalue_reference_v<DefaultType&&>, bool > = true >
+    constexpr decltype(auto) /*auto &&*/ get_else( DefaultType && defaultValue )
+        {
+            if constexpr ( has_t<NamedArgType>::value )
+                return this->get<NamedArgType>();
+            else
+                return std::forward<DefaultType>( defaultValue );
+        }
+    template <typename ArgIdentifierType, typename DefaultType>
+    constexpr decltype(auto) get_else( ArgIdentifierType && t, DefaultType && defaultValue )
         {
             return this->get_else<typename std::decay_t<ArgIdentifierType>::identifier_type>( std::forward<DefaultType>( defaultValue ) );
         }
-
     // constraint
     template <template <typename RT> class ReturnConstraintType, typename ArgIdentifierType, typename DefaultType >
     constexpr decltype(auto) get_else( ArgIdentifierType && t, DefaultType && defaultValue ) const
@@ -560,9 +564,12 @@ struct arguments : arguments_base
             return res;
         }
 
-
+    //---------------------------------
+    // get_else_invocable
+    //---------------------------------
+    // const
     template <typename NamedArgType,typename DefaultType, std::enable_if_t< has_t<NamedArgType>::value || std::is_lvalue_reference_v<  std::invoke_result_t< DefaultType> >, bool > = true >
-    constexpr auto && get_else_invocable( DefaultType && defaultInvocableValue ) const
+    constexpr decltype(auto) /*auto &&*/ get_else_invocable( DefaultType && defaultInvocableValue ) const
         {
             if constexpr ( has_t<NamedArgType>::value )
                 return this->get<NamedArgType>();
@@ -572,7 +579,6 @@ struct arguments : arguments_base
                 return std::forward<DefaultType>( defaultInvocableValue )();
             }
         }
-
     template <typename NamedArgType,typename DefaultType,
               std::enable_if_t< !has_t<NamedArgType>::value && ( !std::is_reference_v< std::invoke_result_t< DefaultType> > || std::is_rvalue_reference_v< std::invoke_result_t< DefaultType> > ) , bool > = true >
     constexpr auto get_else_invocable( DefaultType && defaultInvocableValue ) const
@@ -580,20 +586,29 @@ struct arguments : arguments_base
             static_assert( std::is_invocable_v<DefaultType>, "is_invocable_v should be true" );
             return std::forward<DefaultType>( defaultInvocableValue )();
         }
-
-    template <typename ArgIdentifierType,typename DefaultType,
-              std::enable_if_t<is_argument_identifier_v<ArgIdentifierType> && ( has_t<typename std::decay_t<ArgIdentifierType>::identifier_type>::value || std::is_lvalue_reference_v<  std::invoke_result_t< DefaultType> > ) ,bool> = true >
-    constexpr auto && get_else_invocable( ArgIdentifierType && t, DefaultType && defaultInvocableValue ) const
+    template <typename ArgIdentifierType,typename DefaultType>
+    constexpr decltype(auto) get_else_invocable( ArgIdentifierType && t, DefaultType && defaultInvocableValue ) const
+        {
+            return this->get_else_invocable<typename std::decay_t<ArgIdentifierType>::identifier_type>( std::forward<DefaultType>( defaultInvocableValue ) );
+        }
+    // non const
+    template <typename NamedArgType,typename DefaultType, std::enable_if_t< has_t<NamedArgType>::value || std::is_lvalue_reference_v<  std::invoke_result_t< DefaultType> >, bool > = true >
+    constexpr decltype(auto) /*auto &&*/ get_else_invocable( DefaultType && defaultInvocableValue )
+        {
+            if constexpr ( has_t<NamedArgType>::value )
+                return this->get<NamedArgType>();
+            else
+            {
+                static_assert( std::is_invocable_v<DefaultType>, "is_invocable_v should be true" );
+                return std::forward<DefaultType>( defaultInvocableValue )();
+            }
+        }
+    template <typename ArgIdentifierType,typename DefaultType>
+    constexpr decltype(auto) get_else_invocable( ArgIdentifierType && t, DefaultType && defaultInvocableValue )
         {
             return this->get_else_invocable<typename std::decay_t<ArgIdentifierType>::identifier_type>( std::forward<DefaultType>( defaultInvocableValue ) );
         }
 
-    template <typename ArgIdentifierType,typename DefaultType,
-              std::enable_if_t<is_argument_identifier_v<ArgIdentifierType> && !has_t<typename std::decay_t<ArgIdentifierType>::identifier_type>::value && ( !std::is_reference_v< std::invoke_result_t< DefaultType> > || std::is_rvalue_reference_v< std::invoke_result_t< DefaultType> > ) , bool > = true >
-    constexpr auto get_else_invocable( ArgIdentifierType && t, DefaultType && defaultInvocableValue ) const
-        {
-            return this->get_else_invocable<typename std::decay_t<ArgIdentifierType>::identifier_type>( std::forward<DefaultType>( defaultInvocableValue ) );
-        }
     // with constraint
     template <template <typename RT> class ReturnConstraintType, typename ArgIdentifierType,typename DefaultType>
     constexpr decltype(auto) get_else_invocable( ArgIdentifierType && t, DefaultType && defaultInvocableValue ) const
