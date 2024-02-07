@@ -76,7 +76,7 @@ auto makeSpData( std::tuple<T...>& t ){
 }
 }
 
-namespace pm
+namespace Frontend
 {
 template <typename ... Ts>
 void
@@ -103,19 +103,19 @@ int main()
     double d1=2.34;
 
     // use variables state (if non const -> SpWrite else SpRead).
-    pm::runTask( _parameters=pm::parameters(i1,d1),
-                 _task=[](int p1,double & p2){
-                           p2 *= p1;
-                       } );
+    Frontend::runTask( _parameters=Frontend::parameters(i1,d1),
+                       _task=[](int p1,double & p2){
+                                 p2 *= p1;
+                             } );
     std::cout << "d1="<< d1 << std::endl;
 
     // use std::ref/std::cref (if non const -> SpWrite else SpRead).
     int i2 = 123;
     std::string s2 = "string value : ";
-    pm::runTask( _parameters=pm::parameters(std::cref(i2),std::ref(s2)),
-                 _task=[](int p1,std::string & p2){
-                           p2 += std::to_string(p1);
-                       } );
+    Frontend::runTask( _parameters=Frontend::parameters(std::cref(i2),std::ref(s2)),
+                       _task=[](int p1,std::string & p2){
+                                 p2 += std::to_string(p1);
+                             } );
     std::cout << "s2="<< s2 << std::endl;
 
     return 0;
