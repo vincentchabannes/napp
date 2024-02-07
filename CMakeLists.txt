@@ -31,6 +31,7 @@ set(NAPP_CMAKE_PROJECT_TARGETS_FILE "${NAPP_CMAKE_CONFIG_DIR}/${PROJECT_NAME}Tar
 
 option(NAPP_ENABLE_TESTS        "Build the unit tests when NAPP_ENABLE_TESTS is enabled." ${MAIN_PROJECT})
 option(NAPP_ENABLE_DOC        "Build the doc examples tests when NAPP_ENABLE_DOC is enabled." ${MAIN_PROJECT})
+option(NAPP_ENABLE_EXAMPLES        "Build examples when NAPP_ENABLE_EXAMPLES is enabled." ${MAIN_PROJECT})
 
 # option(NAPP_MultipleHeaders     "Use non-amalgamated version of the library." OFF)
 # if (NAPP_MultipleHeaders)
@@ -66,9 +67,14 @@ if (NAPP_ENABLE_TESTS)
 endif()
 
 
+if (NAPP_ENABLE_EXAMPLES)
+  add_subdirectory(examples)
+endif()
+
 if (NAPP_ENABLE_DOC)
   add_subdirectory(doc)
 endif()
+
 
 
 install(
