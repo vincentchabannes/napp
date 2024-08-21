@@ -40,7 +40,7 @@ std::string test_nonconst( Ts && ... v )
     auto args = NA::make_arguments( std::forward<Ts>(v)... );
     auto && data = args.get(_data);
     auto && data2 = args.get_else(_data2,data);
-    auto && data3 = args.get_else_invocable(_data3,[&data]() -> decltype(auto) { return data; });
+    auto && data3 = args.get_else_invocable(_data3,[&data]() -> decltype(auto) { return std::forward<decltype(data)>( data ); });
 
     data.setI(12);
     data2.setI(13);
@@ -57,7 +57,7 @@ std::string test_const( Ts && ... v )
     auto args = NA::make_arguments( std::forward<Ts>(v)... );
     auto && data = args.get(_data);
     auto && data2 = args.get_else(_data2,data);
-    auto && data3 = args.get_else_invocable(_data3,[&data]() -> decltype(auto) { return data; });
+    auto && data3 = args.get_else_invocable(_data3,[&data]() -> decltype(auto) { return std::forward<decltype(data)>( data ); });
 
     static_assert( std::is_const_v<std::remove_reference_t<decltype(data)>>, "should be const" );
     static_assert( std::is_const_v<std::remove_reference_t<decltype(data2)>>, "should be const" );

@@ -1,6 +1,7 @@
 #include <napp/na.hpp>
 #include <tuple>
 #include <iostream>
+#include <string>
 
 constexpr auto& _parameters = NA::identifier<struct parameters_tag>;
 constexpr auto& _task = NA::identifier<struct task_tag>;
