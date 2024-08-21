@@ -16,8 +16,13 @@ jobs:
       matrix:
         include:
           - { os: ubuntu-22.04, cxx-compiler: g++-11 }
+          - { os: ubuntu-22.04, cxx-compiler: g++-12 }
+          - { os: ubuntu-22.04, cxx-compiler: clang++ }
           - { os: ubuntu-24.04, cxx-compiler: g++-13 }
           - { os: ubuntu-24.04, cxx-compiler: g++-14 }
+          - { os: ubuntu-24.04, cxx-compiler: clang++ }
+          - { os: macos-14-large, cxx-compiler: clang++ }
+          - { os: windows-2022, cxx-compiler: cl }
     runs-on: ${{ matrix.os }}
 
     # The CMake configure and build commands are platform agnostic and should work equally
