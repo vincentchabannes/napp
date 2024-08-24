@@ -12,7 +12,7 @@ FetchContent_MakeAvailable(Catch2)
 add_library( napp_test_lib1  lib1.cpp)
 target_link_libraries(napp_test_lib1 PRIVATE ${NAPP_TARGET_NAME} )
 
-file(GLOB files unit-*.cpp)
+file(GLOB files unit-*.cpp bug-ftbs-*.cpp)
 foreach(file ${files})
   get_filename_component(file_basename ${file} NAME_WE)
   #string(REGEX REPLACE "unit-([^$]+)" "test-\\1" testcase ${file_basename})
