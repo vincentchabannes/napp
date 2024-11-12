@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.15)
 
-project(napp VERSION 0.1 LANGUAGES CXX)
+project(napp VERSION 0.3 LANGUAGES CXX)
 
 ##
 ## MAIN_PROJECT CHECK
@@ -19,6 +19,7 @@ endif()
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
+
 set(NAPP_TARGET_NAME  ${PROJECT_NAME})
 set(NAPP_INCLUDE_INSTALL_DIR "${CMAKE_INSTALL_INCLUDEDIR}")
 if(NOT DEFINED NAPP_CONFIG_INSTALL_DIR )
@@ -91,8 +92,26 @@ install(
   EXPORT ${NAPP_TARGETS_EXPORT_NAME}
   INCLUDES DESTINATION ${NAPP_INCLUDE_INSTALL_DIR}
   )
+# Install CMake package configuration files
+write_basic_package_version_file(
+  "${NAPP_CMAKE_CONFIG_DIR}/${PROJECT_NAME}ConfigVersion.cmake"
+  VERSION ${PROJECT_VERSION}
+  COMPATIBILITY AnyNewerVersion
+)
+
+configure_package_config_file(
+  "${PROJECT_SOURCE_DIR}/cmake/${PROJECT_NAME}Config.cmake.in"   # Create this file as explained below
+  "${NAPP_CMAKE_CONFIG_DIR}/${PROJECT_NAME}Config.cmake"
+  INSTALL_DESTINATION ${NAPP_CONFIG_INSTALL_DIR}
+)
 install(
   EXPORT ${NAPP_TARGETS_EXPORT_NAME}
   NAMESPACE ${PROJECT_NAME}::
   DESTINATION ${NAPP_CONFIG_INSTALL_DIR}
   )
+install(
+  FILES
+    "${NAPP_CMAKE_CONFIG_DIR}/${PROJECT_NAME}Config.cmake"
+    "${NAPP_CMAKE_CONFIG_DIR}/${PROJECT_NAME}ConfigVersion.cmake"
+  DESTINATION ${NAPP_CONFIG_INSTALL_DIR}
+)
