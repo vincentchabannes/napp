@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.15)
 
-project(napp VERSION 0.1 LANGUAGES CXX)
+project(napp VERSION 0.3 LANGUAGES CXX)
 
 ##
 ## MAIN_PROJECT CHECK
